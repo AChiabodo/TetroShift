@@ -1,0 +1,37 @@
+# Build directories
+build/
+bin/
+out/
+_deps/
+.cache/
+
+# Visual Studio & IDE files
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+*.sln.docstates
+*.vcxproj.user
+
+# Compiled object files & binaries
+*.obj
+*.o
+*.ilk
+*.pdb
+*.tlog
+*.idb
+*.exe
+*.lib
+*.dll
+*.exp
+*.log
+
+# CMake cache and temporary files
+CMakeCache.txt
+CMakeFiles/
+CMakeScripts/
+Makefile
+cmake_install.cmake
+CMakeUserPresets.json
+compile_commands.json
