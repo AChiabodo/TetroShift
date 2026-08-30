@@ -2,6 +2,7 @@
 #include "EventBus.hpp"
 #include "states/GameStateManager.hpp"
 #include "audio/SoundSynth.hpp"
+#include "audio/MusicManager.hpp"
 #include "roguelike/CardDatabase.hpp"
 #include "roguelike/Inventory.hpp"
 #include <memory>
@@ -22,6 +23,7 @@ public:
     [[nodiscard]] EventBus& GetEventBus() noexcept { return m_eventBus; }
     [[nodiscard]] GameStateManager& GetStateManager() noexcept { return m_stateManager; }
     [[nodiscard]] SoundSynth& GetSoundSynth() noexcept { return m_soundSynth; }
+    [[nodiscard]] MusicManager& GetMusicManager() noexcept { return m_musicManager; }
     [[nodiscard]] CardDatabase& GetCardDatabase() noexcept { return m_cardDatabase; }
 
     // Inter-state bridge helpers
@@ -29,11 +31,14 @@ public:
     void ApplyDraftCard(const struct Card& card);
     bool UseRerollToken();
     [[nodiscard]] int GetRemainingRerolls() const;
+    void RequestExit() noexcept { m_isRunning = false; }
+    [[nodiscard]] bool IsRunning() const noexcept { return m_isRunning; }
 
 private:
     EventBus m_eventBus;
     GameStateManager m_stateManager;
     SoundSynth m_soundSynth;
+    MusicManager m_musicManager;
     CardDatabase m_cardDatabase;
     bool m_isRunning = false;
 };

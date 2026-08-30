@@ -17,14 +17,20 @@ GameApp::GameApp() {
 
     InitAudioDevice();
     m_soundSynth.Initialize();
+    m_musicManager.Initialize();
 
     m_stateManager.SetState(*this, std::make_unique<TitleState>());
 }
 
 GameApp::~GameApp() {
+    m_musicManager.Shutdown();
     m_soundSynth.Shutdown();
-    CloseAudioDevice();
-    CloseWindow();
+    if (IsAudioDeviceReady()) {
+        CloseAudioDevice();
+    }
+    if (IsWindowReady()) {
+        CloseWindow();
+    }
 }
 
 void GameApp::Run() {
@@ -33,8 +39,12 @@ void GameApp::Run() {
         float dt = GetFrameTime();
         if (dt > 0.1f) dt = 0.1f; // Clamp frame delta on lag spikes
 
+        m_musicManager.Update(dt);
         m_stateManager.HandleInput(*this);
+        if (!m_isRunning) break;
+
         m_stateManager.Update(*this, dt);
+        if (!m_isRunning) break;
 
         BeginDrawing();
         m_stateManager.Render(*this);
