@@ -104,8 +104,12 @@ void SoundSynth::Initialize() {
         m_sndCardSelect = GenerateTone(440.0f, 1200.0f, 0.3f, 0.5f, 2);    // Magical chime
         m_sndGameOver = GenerateTone(320.0f, 60.0f, 0.7f, 0.6f, 1);        // Descending doom
         m_sndLevelUp = GenerateTone(392.0f, 1046.50f, 0.35f, 0.55f, 0);    // G4 -> C6 victory
+        m_sndMenuHover = GenerateTone(600.0f, 750.0f, 0.025f, 0.20f, 0);   // Soft cursor hover tick
+        m_sndMenuBack = GenerateTone(450.0f, 220.0f, 0.12f, 0.35f, 2);     // Descending cancel chirp
+        m_sndMenuToggle = GenerateTone(480.0f, 620.0f, 0.06f, 0.35f, 1);   // Crisp toggle click
 
         m_initialized = true;
+        ::SetMasterVolume(m_masterVolume);
     }
 }
 
@@ -123,8 +127,27 @@ void SoundSynth::Shutdown() {
     UnloadSound(m_sndCardSelect);
     UnloadSound(m_sndGameOver);
     UnloadSound(m_sndLevelUp);
+    UnloadSound(m_sndMenuHover);
+    UnloadSound(m_sndMenuBack);
+    UnloadSound(m_sndMenuToggle);
 
     m_initialized = false;
+}
+
+void SoundSynth::SetMuted(bool muted) noexcept {
+    m_isMuted = muted;
+    if (m_isMuted) {
+        ::SetMasterVolume(0.0f);
+    } else {
+        ::SetMasterVolume(m_masterVolume);
+    }
+}
+
+void SoundSynth::SetMasterVolume(float volume) noexcept {
+    m_masterVolume = (volume < 0.0f) ? 0.0f : ((volume > 1.0f) ? 1.0f : volume);
+    if (!m_isMuted) {
+        ::SetMasterVolume(m_masterVolume);
+    }
 }
 
 void SoundSynth::PlayMove() {
@@ -170,6 +193,18 @@ void SoundSynth::PlayGameOver() {
 
 void SoundSynth::PlayLevelUp() {
     if (m_initialized && !m_isMuted) PlaySound(m_sndLevelUp);
+}
+
+void SoundSynth::PlayMenuHover() {
+    if (m_initialized && !m_isMuted) PlaySound(m_sndMenuHover);
+}
+
+void SoundSynth::PlayMenuBack() {
+    if (m_initialized && !m_isMuted) PlaySound(m_sndMenuBack);
+}
+
+void SoundSynth::PlayMenuToggle() {
+    if (m_initialized && !m_isMuted) PlaySound(m_sndMenuToggle);
 }
 
 } // namespace TetroShift
