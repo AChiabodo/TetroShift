@@ -16,6 +16,8 @@ void TitleState::OnEnter(GameApp& app) {
 
     InitializeMockData();
     app.GetSoundSynth().SetMasterVolume(m_settings.masterVolume);
+    app.GetMusicManager().SetVolume(m_settings.musicVolume);
+    app.GetMusicManager().PlayTrack(TrackId::MenuTheme, true);
 }
 
 void TitleState::OnExit(GameApp& /*app*/) {}
@@ -247,30 +249,78 @@ void TitleState::HandleInputShop(GameApp& app) {
 void TitleState::HandleInputCustomization(GameApp& app) {
     if (IsKeyPressed(KEY_ESCAPE)) { GoBack(app); return; }
 
-    const int numThemes = static_cast<int>(m_customThemes.size());
-    if (IsKeyPressed(KEY_UP) || IsKeyPressed(KEY_W)) {
-        m_selectedOption = (m_selectedOption - 1 + numThemes) % numThemes;
-        m_selectedThemeIndex = m_selectedOption;
-        app.GetSoundSynth().PlayMenuHover();
-    }
-    if (IsKeyPressed(KEY_DOWN) || IsKeyPressed(KEY_S)) {
-        m_selectedOption = (m_selectedOption + 1) % numThemes;
-        m_selectedThemeIndex = m_selectedOption;
-        app.GetSoundSynth().PlayMenuHover();
+    // Tab switching with TAB
+    if (IsKeyPressed(KEY_TAB)) {
+        m_activeTab = (m_activeTab == 0) ? 1 : 0;
+        m_selectedOption = 0;
+        app.GetSoundSynth().PlayMenuToggle();
+        return;
     }
 
-    if (IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_SPACE)) {
-        for (size_t i = 0; i < m_customThemes.size(); ++i) {
-            m_customThemes[i].isEquipped = (static_cast<int>(i) == m_selectedOption);
+    if (m_activeTab == 0) {
+        // Tab 0: Mino Visual Skins
+        const int numThemes = static_cast<int>(m_customThemes.size());
+        if (IsKeyPressed(KEY_UP) || IsKeyPressed(KEY_W)) {
+            m_selectedOption = (m_selectedOption - 1 + numThemes) % numThemes;
+            m_selectedThemeIndex = m_selectedOption;
+            app.GetSoundSynth().PlayMenuHover();
         }
-        app.GetSoundSynth().PlayCardSelect();
+        if (IsKeyPressed(KEY_DOWN) || IsKeyPressed(KEY_S)) {
+            m_selectedOption = (m_selectedOption + 1) % numThemes;
+            m_selectedThemeIndex = m_selectedOption;
+            app.GetSoundSynth().PlayMenuHover();
+        }
+
+        if (IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_SPACE)) {
+            for (size_t i = 0; i < m_customThemes.size(); ++i) {
+                m_customThemes[i].isEquipped = (static_cast<int>(i) == m_selectedOption);
+            }
+            app.GetSoundSynth().PlayCardSelect();
+        }
+    } else {
+        // Tab 1: Soundtrack Jukebox & Fixed Track Selection
+        const auto& catalog = app.GetMusicManager().GetTrackCatalog();
+        const int numTracks = static_cast<int>(catalog.size());
+
+        if (IsKeyPressed(KEY_UP) || IsKeyPressed(KEY_W)) {
+            m_selectedJukeboxIndex = (m_selectedJukeboxIndex - 1 + numTracks) % numTracks;
+            app.GetSoundSynth().PlayMenuHover();
+        }
+        if (IsKeyPressed(KEY_DOWN) || IsKeyPressed(KEY_S)) {
+            m_selectedJukeboxIndex = (m_selectedJukeboxIndex + 1) % numTracks;
+            app.GetSoundSynth().PlayMenuHover();
+        }
+
+        // Preview track with SPACE
+        if (IsKeyPressed(KEY_SPACE) || IsKeyPressed(KEY_P)) {
+            if (m_selectedJukeboxIndex >= 0 && m_selectedJukeboxIndex < numTracks) {
+                app.GetMusicManager().PlayTrack(catalog[m_selectedJukeboxIndex].id, true);
+                app.GetSoundSynth().PlayMenuToggle();
+            }
+        }
+
+        // Lock/Unlock fixed soundtrack with ENTER
+        if (IsKeyPressed(KEY_ENTER)) {
+            if (m_selectedJukeboxIndex >= 0 && m_selectedJukeboxIndex < numTracks) {
+                int newFixed = m_selectedJukeboxIndex + 1;
+                if (m_settings.fixedSoundtrack == newFixed) {
+                    m_settings.fixedSoundtrack = 0; // Dynamic
+                    app.GetSoundSynth().PlayMenuBack();
+                } else {
+                    m_settings.fixedSoundtrack = newFixed;
+                    app.GetSoundSynth().PlayLevelUp();
+                }
+                app.GetMusicManager().SetFixedTrackIndex(m_settings.fixedSoundtrack);
+                app.GetMusicManager().PlayTrack(catalog[m_selectedJukeboxIndex].id, true);
+            }
+        }
     }
 }
 
 void TitleState::HandleInputSettings(GameApp& app) {
     if (IsKeyPressed(KEY_ESCAPE)) { GoBack(app); return; }
 
-    const int numSettings = 5;
+    const int numSettings = 8;
     if (IsKeyPressed(KEY_UP) || IsKeyPressed(KEY_W)) {
         m_selectedOption = (m_selectedOption - 1 + numSettings) % numSettings;
         app.GetSoundSynth().PlayMenuHover();
@@ -280,41 +330,76 @@ void TitleState::HandleInputSettings(GameApp& app) {
         app.GetSoundSynth().PlayMenuHover();
     }
 
-    // Left / Right adjustments
+    const auto& catalog = app.GetMusicManager().GetTrackCatalog();
+
+    // Left adjustments
     if (IsKeyPressed(KEY_LEFT) || IsKeyPressed(KEY_A)) {
-        if (m_selectedOption == 0) { // Volume
+        if (m_selectedOption == 0) { // Master Volume
             m_settings.masterVolume = std::max(0.0f, m_settings.masterVolume - 0.1f);
             app.GetSoundSynth().SetMasterVolume(m_settings.masterVolume);
             app.GetSoundSynth().PlayMenuToggle();
-        } else if (m_selectedOption == 1) { // Screen Shake
+        } else if (m_selectedOption == 1) { // Music Volume
+            m_settings.musicVolume = std::max(0.0f, m_settings.musicVolume - 0.1f);
+            app.GetMusicManager().SetVolume(m_settings.musicVolume);
+            app.GetSoundSynth().PlayMenuToggle();
+        } else if (m_selectedOption == 2) { // SFX Volume
+            m_settings.sfxVolume = std::max(0.0f, m_settings.sfxVolume - 0.1f);
+            app.GetSoundSynth().PlayMenuToggle();
+        } else if (m_selectedOption == 3) { // Fixed Soundtrack Mode
+            m_settings.fixedSoundtrack = (m_settings.fixedSoundtrack - 1 + 9) % 9;
+            app.GetMusicManager().SetFixedTrackIndex(m_settings.fixedSoundtrack);
+            if (m_settings.fixedSoundtrack > 0 && m_settings.fixedSoundtrack <= static_cast<int>(catalog.size())) {
+                app.GetMusicManager().PlayTrack(catalog[m_settings.fixedSoundtrack - 1].id, true);
+            } else {
+                app.GetMusicManager().PlayTrack(TrackId::MenuTheme, true);
+            }
+            app.GetSoundSynth().PlayMenuToggle();
+        } else if (m_selectedOption == 4) { // Screen Shake
             m_settings.screenShakeLevel = (m_settings.screenShakeLevel - 1 + 4) % 4;
             app.GetSoundSynth().PlayMenuToggle();
-        } else if (m_selectedOption == 2) { // CRT Scanlines
+        } else if (m_selectedOption == 5) { // CRT Scanlines
             m_settings.crtScanlines = !m_settings.crtScanlines;
             app.GetSoundSynth().PlayMenuToggle();
-        } else if (m_selectedOption == 3) { // Soft-Body Wobble
+        } else if (m_selectedOption == 6) { // Soft-Body Wobble
             m_settings.softBodyWobble = (m_settings.softBodyWobble - 1 + 3) % 3;
             app.GetSoundSynth().PlayMenuToggle();
-        } else if (m_selectedOption == 4) { // Fast DAS
+        } else if (m_selectedOption == 7) { // Fast DAS
             m_settings.fastDAS = !m_settings.fastDAS;
             app.GetSoundSynth().PlayMenuToggle();
         }
     }
+    // Right / Enter adjustments
     if (IsKeyPressed(KEY_RIGHT) || IsKeyPressed(KEY_D) || IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_SPACE)) {
-        if (m_selectedOption == 0) { // Volume
+        if (m_selectedOption == 0) { // Master Volume
             m_settings.masterVolume = std::min(1.0f, m_settings.masterVolume + 0.1f);
             app.GetSoundSynth().SetMasterVolume(m_settings.masterVolume);
             app.GetSoundSynth().PlayMenuToggle();
-        } else if (m_selectedOption == 1) { // Screen Shake
+        } else if (m_selectedOption == 1) { // Music Volume
+            m_settings.musicVolume = std::min(1.0f, m_settings.musicVolume + 0.1f);
+            app.GetMusicManager().SetVolume(m_settings.musicVolume);
+            app.GetSoundSynth().PlayMenuToggle();
+        } else if (m_selectedOption == 2) { // SFX Volume
+            m_settings.sfxVolume = std::min(1.0f, m_settings.sfxVolume + 0.1f);
+            app.GetSoundSynth().PlayMenuToggle();
+        } else if (m_selectedOption == 3) { // Fixed Soundtrack Mode
+            m_settings.fixedSoundtrack = (m_settings.fixedSoundtrack + 1) % 9;
+            app.GetMusicManager().SetFixedTrackIndex(m_settings.fixedSoundtrack);
+            if (m_settings.fixedSoundtrack > 0 && m_settings.fixedSoundtrack <= static_cast<int>(catalog.size())) {
+                app.GetMusicManager().PlayTrack(catalog[m_settings.fixedSoundtrack - 1].id, true);
+            } else {
+                app.GetMusicManager().PlayTrack(TrackId::MenuTheme, true);
+            }
+            app.GetSoundSynth().PlayMenuToggle();
+        } else if (m_selectedOption == 4) { // Screen Shake
             m_settings.screenShakeLevel = (m_settings.screenShakeLevel + 1) % 4;
             app.GetSoundSynth().PlayMenuToggle();
-        } else if (m_selectedOption == 2) { // CRT Scanlines
+        } else if (m_selectedOption == 5) { // CRT Scanlines
             m_settings.crtScanlines = !m_settings.crtScanlines;
             app.GetSoundSynth().PlayMenuToggle();
-        } else if (m_selectedOption == 3) { // Soft-Body Wobble
+        } else if (m_selectedOption == 6) { // Soft-Body Wobble
             m_settings.softBodyWobble = (m_settings.softBodyWobble + 1) % 3;
             app.GetSoundSynth().PlayMenuToggle();
-        } else if (m_selectedOption == 4) { // Fast DAS
+        } else if (m_selectedOption == 7) { // Fast DAS
             m_settings.fastDAS = !m_settings.fastDAS;
             app.GetSoundSynth().PlayMenuToggle();
         }
@@ -334,7 +419,7 @@ void TitleState::HandleInputQuitConfirm(GameApp& app) {
 
     if (IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_SPACE) || IsKeyPressed(KEY_Y)) {
         if (m_selectedOption == 1) {
-            CloseWindow();
+            app.RequestExit();
         } else {
             SetView(MenuView::Main, app);
         }
@@ -358,6 +443,15 @@ void TitleState::Render(GameApp& app) {
             RenderMainHub(app);
             RenderQuitConfirm(app);
             break;
+    }
+
+    // 3. HUD Now Playing Banner
+    if (app.GetMusicManager().IsNowPlayingVisible()) {
+        m_menuRenderer.DrawNowPlayingBanner(
+            app.GetMusicManager().GetNowPlayingTitle().c_str(),
+            app.GetMusicManager().GetNowPlayingGenre().c_str(),
+            app.GetMusicManager().GetNowPlayingAlpha()
+        );
     }
 }
 
@@ -688,78 +782,214 @@ void TitleState::RenderShop(GameApp& app) {
 
 void TitleState::RenderCustomization(GameApp& app) {
     Vector2 mousePos = GetMousePosition();
-    m_menuRenderer.DrawHeaderBanner("HANGAR // TETROMINO THEMES", "CUSTOMIZE", "HANGAR");
+    m_menuRenderer.DrawHeaderBanner("HANGAR // CUSTOMIZATION & JUKEBOX", "CUSTOMIZE", "HANGAR");
 
-    // Left List: Themes
-    float startY = 110.0f;
-    float cardW = 540.0f;
-    float cardH = 115.0f;
+    // Top Tabs
+    std::vector<std::string> tabs = { "MINO VISUAL SKINS", "SOUNDTRACK JUKEBOX" };
+    Rectangle tabRect = { 60.0f, 95.0f, 540.0f, 38.0f };
+    int hoveredTab = -1;
+    if (CheckCollisionPointRec(mousePos, { 60.0f, 95.0f, 270.0f, 38.0f })) hoveredTab = 0;
+    else if (CheckCollisionPointRec(mousePos, { 330.0f, 95.0f, 270.0f, 38.0f })) hoveredTab = 1;
 
-    for (size_t i = 0; i < m_customThemes.size(); ++i) {
-        Rectangle tRect = { 60.0f, startY + static_cast<float>(i) * (cardH + 18.0f), cardW, cardH };
-        bool isHovered = CheckCollisionPointRec(mousePos, tRect);
-        bool isSelected = (m_selectedOption == static_cast<int>(i));
+    if (hoveredTab != -1 && IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && m_activeTab != hoveredTab) {
+        m_activeTab = hoveredTab;
+        m_selectedOption = 0;
+        app.GetSoundSynth().PlayMenuToggle();
+    }
 
-        if (isHovered && !isSelected) {
-            m_selectedOption = static_cast<int>(i);
-            m_selectedThemeIndex = static_cast<int>(i);
-            app.GetSoundSynth().PlayMenuHover();
-        }
+    m_menuRenderer.DrawTabHeader(tabs, m_activeTab, tabRect, hoveredTab);
 
-        if (isHovered && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
-            for (size_t j = 0; j < m_customThemes.size(); ++j) {
-                m_customThemes[j].isEquipped = (j == i);
+    float startY = 145.0f;
+
+    if (m_activeTab == 0) {
+        // Tab 0: Themes
+        float cardW = 540.0f;
+        float cardH = 112.0f;
+
+        for (size_t i = 0; i < m_customThemes.size(); ++i) {
+            Rectangle tRect = { 60.0f, startY + static_cast<float>(i) * (cardH + 16.0f), cardW, cardH };
+            bool isHovered = CheckCollisionPointRec(mousePos, tRect);
+            bool isSelected = (m_selectedOption == static_cast<int>(i));
+
+            if (isHovered && !isSelected) {
+                m_selectedOption = static_cast<int>(i);
+                m_selectedThemeIndex = static_cast<int>(i);
+                app.GetSoundSynth().PlayMenuHover();
             }
-            app.GetSoundSynth().PlayCardSelect();
+
+            if (isHovered && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+                for (size_t j = 0; j < m_customThemes.size(); ++j) {
+                    m_customThemes[j].isEquipped = (j == i);
+                }
+                app.GetSoundSynth().PlayCardSelect();
+            }
+
+            Color border = isSelected ? m_customThemes[i].primaryColor : (isHovered ? WHITE : Colors::BgPanelBorder);
+            Color bg = isSelected ? Fade(m_customThemes[i].primaryColor, 0.15f) : Colors::BgPanel;
+
+            DrawRectangleRounded(tRect, 0.08f, 6, bg);
+            DrawRectangleLinesEx(tRect, isSelected ? 2.5f : 1.2f, border);
+
+            DrawText(m_customThemes[i].name.c_str(), static_cast<int>(tRect.x + 18.0f), static_cast<int>(tRect.y + 16.0f), 17, Colors::TextWhite);
+            DrawText(m_customThemes[i].description.c_str(), static_cast<int>(tRect.x + 18.0f), static_cast<int>(tRect.y + 44.0f), 11, Colors::TextDim);
+
+            if (m_customThemes[i].isEquipped) {
+                DrawText("[EQUIPPED / ACTIVE]", static_cast<int>(tRect.x + 18.0f), static_cast<int>(tRect.y + 78.0f), 12, Colors::TextGreen);
+            } else {
+                DrawText("CLICK TO EQUIP", static_cast<int>(tRect.x + 18.0f), static_cast<int>(tRect.y + 78.0f), 12, Colors::TextDim);
+            }
         }
 
-        Color border = isSelected ? m_customThemes[i].primaryColor : (isHovered ? WHITE : Colors::BgPanelBorder);
-        Color bg = isSelected ? Fade(m_customThemes[i].primaryColor, 0.15f) : Colors::BgPanel;
+        // Right Box: Live Interactive Preview Chamber
+        Rectangle chamberRect = { 650.0f, 145.0f, WINDOW_WIDTH - 710.0f, 495.0f };
+        DrawRectangleRounded(chamberRect, 0.04f, 6, Colors::BgPanel);
+        DrawRectangleLinesEx(chamberRect, 1.5f, Colors::BgPanelBorder);
 
-        DrawRectangleRounded(tRect, 0.08f, 6, bg);
-        DrawRectangleLinesEx(tRect, isSelected ? 2.5f : 1.2f, border);
+        DrawText("LIVE SIMULATION CHAMBER", static_cast<int>(chamberRect.x + 24.0f), static_cast<int>(chamberRect.y + 20.0f), 14, Colors::TextAccent);
+        DrawLine(static_cast<int>(chamberRect.x + 24.0f), static_cast<int>(chamberRect.y + 44.0f), static_cast<int>(chamberRect.x + chamberRect.width - 24.0f), static_cast<int>(chamberRect.y + 44.0f), Colors::BgPanelBorder);
 
-        DrawText(m_customThemes[i].name.c_str(), static_cast<int>(tRect.x + 18.0f), static_cast<int>(tRect.y + 16.0f), 17, Colors::TextWhite);
-        DrawText(m_customThemes[i].description.c_str(), static_cast<int>(tRect.x + 18.0f), static_cast<int>(tRect.y + 44.0f), 11, Colors::TextDim);
+        if (m_selectedThemeIndex >= 0 && m_selectedThemeIndex < static_cast<int>(m_customThemes.size())) {
+            const auto& theme = m_customThemes[m_selectedThemeIndex];
+            Vector2 previewPos = { chamberRect.x + chamberRect.width * 0.5f, chamberRect.y + chamberRect.height * 0.45f };
+            m_menuRenderer.DrawMinoSkinPreview(theme.previewType, previewPos, 44.0f, m_animTimer, theme.primaryColor, theme.secondaryColor);
 
-        if (m_customThemes[i].isEquipped) {
-            DrawText("[EQUIPPED / ACTIVE]", static_cast<int>(tRect.x + 18.0f), static_cast<int>(tRect.y + 80.0f), 12, Colors::TextGreen);
-        } else {
-            DrawText("CLICK TO EQUIP", static_cast<int>(tRect.x + 18.0f), static_cast<int>(tRect.y + 80.0f), 12, Colors::TextDim);
+            int textW = MeasureText(theme.name.c_str(), 16);
+            DrawText(theme.name.c_str(), static_cast<int>(chamberRect.x + (chamberRect.width - textW) * 0.5f), static_cast<int>(chamberRect.y + chamberRect.height - 80.0f), 16, Colors::TextWhite);
+            const char* note = "Real-time Verlet spring lattice preview";
+            int nw = MeasureText(note, 11);
+            DrawText(note, static_cast<int>(chamberRect.x + (chamberRect.width - nw) * 0.5f), static_cast<int>(chamberRect.y + chamberRect.height - 55.0f), 11, Colors::TextDim);
         }
+
+        m_menuRenderer.DrawFooterHints({ "[ESC] Return to Main Menu", "[TAB] Switch to Jukebox", "[UP / DOWN] Select Skin", "[ENTER / CLICK] Equip Theme" });
+    } else {
+        // Tab 1: Soundtrack Jukebox
+        const auto& catalog = app.GetMusicManager().GetTrackCatalog();
+        float cardW = 540.0f;
+        float cardH = 56.0f;
+
+        for (size_t i = 0; i < catalog.size(); ++i) {
+            Rectangle tRect = { 60.0f, startY + static_cast<float>(i) * (cardH + 6.0f), cardW, cardH };
+            bool isHovered = CheckCollisionPointRec(mousePos, tRect);
+            bool isSelected = (m_selectedJukeboxIndex == static_cast<int>(i));
+            bool isCurrentPlaying = (app.GetMusicManager().GetCurrentTrackId() == catalog[i].id);
+            bool isLockedDefault = (m_settings.fixedSoundtrack == static_cast<int>(i + 1));
+
+            if (isHovered && !isSelected) {
+                m_selectedJukeboxIndex = static_cast<int>(i);
+                app.GetSoundSynth().PlayMenuHover();
+            }
+
+            // Click play / lock
+            if (isHovered && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+                if (mousePos.x > tRect.x + tRect.width - 130.0f) {
+                    // Lock button clicked
+                    if (isLockedDefault) {
+                        m_settings.fixedSoundtrack = 0;
+                        app.GetSoundSynth().PlayMenuBack();
+                    } else {
+                        m_settings.fixedSoundtrack = static_cast<int>(i + 1);
+                        app.GetSoundSynth().PlayLevelUp();
+                    }
+                    app.GetMusicManager().SetFixedTrackIndex(m_settings.fixedSoundtrack);
+                } else {
+                    // Play preview
+                    app.GetMusicManager().PlayTrack(catalog[i].id, true);
+                    app.GetSoundSynth().PlayMenuToggle();
+                }
+            }
+
+            Color border = isSelected ? Colors::PieceI : (isHovered ? WHITE : Colors::BgPanelBorder);
+            Color bg = isSelected ? Fade(Colors::PieceI, 0.15f) : Colors::BgPanel;
+
+            DrawRectangleRounded(tRect, 0.1f, 4, bg);
+            DrawRectangleLinesEx(tRect, isSelected ? 2.0f : 1.0f, border);
+
+            // Title & Info
+            std::string titleStr = std::to_string(i + 1) + ". " + catalog[i].title;
+            DrawText(titleStr.c_str(), static_cast<int>(tRect.x + 14.0f), static_cast<int>(tRect.y + 10.0f), 13, isCurrentPlaying ? Colors::PieceGold : Colors::TextWhite);
+
+            char metaBuf[64];
+            snprintf(metaBuf, sizeof(metaBuf), "%s | %.0f BPM | %s", catalog[i].genre.c_str(), catalog[i].baseBpm, catalog[i].artist.c_str());
+            DrawText(metaBuf, static_cast<int>(tRect.x + 14.0f), static_cast<int>(tRect.y + 30.0f), 10, Colors::TextDim);
+
+            // Status Badge / Button on right
+            Rectangle badgeRect = { tRect.x + tRect.width - 120.0f, tRect.y + 10.0f, 108.0f, 36.0f };
+            if (isLockedDefault) {
+                DrawRectangleRounded(badgeRect, 0.2f, 4, Fade(Colors::PieceS, 0.25f));
+                DrawRectangleLinesEx(badgeRect, 1.2f, Colors::PieceS);
+                DrawText("LOCKED RUN", static_cast<int>(badgeRect.x + 12.0f), static_cast<int>(badgeRect.y + 11.0f), 11, Colors::PieceS);
+            } else if (isCurrentPlaying) {
+                DrawRectangleRounded(badgeRect, 0.2f, 4, Fade(Colors::PieceGold, 0.25f));
+                DrawRectangleLinesEx(badgeRect, 1.2f, Colors::PieceGold);
+                DrawText("PLAYING ▶", static_cast<int>(badgeRect.x + 16.0f), static_cast<int>(badgeRect.y + 11.0f), 11, Colors::PieceGold);
+            } else {
+                DrawRectangleRounded(badgeRect, 0.2f, 4, Colors::BgDark);
+                DrawRectangleLinesEx(badgeRect, 1.0f, Colors::BgPanelBorder);
+                DrawText("PREVIEW ▶", static_cast<int>(badgeRect.x + 16.0f), static_cast<int>(badgeRect.y + 11.0f), 11, Colors::TextDim);
+            }
+        }
+
+        // Right Box: Cyberpunk Live Audio Visualizer Deck
+        Rectangle visRect = { 650.0f, 145.0f, WINDOW_WIDTH - 710.0f, 495.0f };
+        DrawRectangleRounded(visRect, 0.04f, 6, Colors::BgPanel);
+        DrawRectangleLinesEx(visRect, 1.5f, Colors::BgPanelBorder);
+
+        DrawText("NEURAL AUDIO SYNTHESIZER // JUKEBOX", static_cast<int>(visRect.x + 24.0f), static_cast<int>(visRect.y + 20.0f), 14, Colors::TextAccent);
+        DrawLine(static_cast<int>(visRect.x + 24.0f), static_cast<int>(visRect.y + 44.0f), static_cast<int>(visRect.x + visRect.width - 24.0f), static_cast<int>(visRect.y + 44.0f), Colors::BgPanelBorder);
+
+        if (m_selectedJukeboxIndex >= 0 && m_selectedJukeboxIndex < static_cast<int>(catalog.size())) {
+            const auto& track = catalog[m_selectedJukeboxIndex];
+            DrawText("NOW SELECTED TRACK:", static_cast<int>(visRect.x + 24.0f), static_cast<int>(visRect.y + 65.0f), 12, Colors::TextDim);
+            DrawText(track.title.c_str(), static_cast<int>(visRect.x + 24.0f), static_cast<int>(visRect.y + 88.0f), 20, Colors::PieceI);
+            
+            std::string sub = "GENRE: " + track.genre + "   |   BPM: " + std::to_string(static_cast<int>(track.baseBpm));
+            DrawText(sub.c_str(), static_cast<int>(visRect.x + 24.0f), static_cast<int>(visRect.y + 120.0f), 13, Colors::TextWhite);
+
+            // Animated Equalizer Bars
+            float barAreaY = visRect.y + 160.0f;
+            float barAreaH = 200.0f;
+            int numBars = 24;
+            float barW = (visRect.width - 48.0f) / static_cast<float>(numBars) - 4.0f;
+
+            for (int b = 0; b < numBars; ++b) {
+                float wave = std::sin(m_animTimer * (4.0f + static_cast<float>(b) * 0.4f) + static_cast<float>(b) * 0.6f);
+                float barH = (std::abs(wave) * 0.7f + 0.15f) * barAreaH;
+                Rectangle bar = {
+                    visRect.x + 24.0f + static_cast<float>(b) * (barW + 4.0f),
+                    barAreaY + (barAreaH - barH),
+                    barW,
+                    barH
+                };
+                Color barCol = (b % 3 == 0) ? Colors::PieceI : ((b % 3 == 1) ? Colors::PieceT : Colors::PieceZ);
+                DrawRectangleRounded(bar, 0.3f, 4, Fade(barCol, 0.85f));
+            }
+
+            // Lock / Default status description
+            std::string statusDesc = (m_settings.fixedSoundtrack == m_selectedJukeboxIndex + 1)
+                ? "STATUS: FIXED AS GAME SOUNDTRACK (Plays across all floors)"
+                : (m_settings.fixedSoundtrack == 0
+                    ? "STATUS: DYNAMIC (Game adapts soundtrack per floor sector)"
+                    : "STATUS: ANOTHER TRACK IS CURRENTLY LOCKED");
+            DrawText(statusDesc.c_str(), static_cast<int>(visRect.x + 24.0f), static_cast<int>(visRect.y + 390.0f), 12, Colors::PieceGold);
+
+            const char* help = "[ENTER] Set/Unset as Fixed Game Soundtrack   |   [SPACE] Play/Preview";
+            DrawText(help, static_cast<int>(visRect.x + 24.0f), static_cast<int>(visRect.y + 440.0f), 11, Colors::TextDim);
+        }
+
+        m_menuRenderer.DrawFooterHints({ "[ESC] Return to Main Menu", "[TAB] Switch to Skins", "[UP / DOWN] Select Track", "[SPACE] Play Preview", "[ENTER] Lock as Default" });
     }
-
-    // Right Box: Live Interactive Preview Chamber
-    Rectangle chamberRect = { 650.0f, 110.0f, WINDOW_WIDTH - 710.0f, 520.0f };
-    DrawRectangleRounded(chamberRect, 0.04f, 6, Colors::BgPanel);
-    DrawRectangleLinesEx(chamberRect, 1.5f, Colors::BgPanelBorder);
-
-    DrawText("LIVE SIMULATION CHAMBER", static_cast<int>(chamberRect.x + 24.0f), static_cast<int>(chamberRect.y + 20.0f), 14, Colors::TextAccent);
-    DrawLine(static_cast<int>(chamberRect.x + 24.0f), static_cast<int>(chamberRect.y + 44.0f), static_cast<int>(chamberRect.x + chamberRect.width - 24.0f), static_cast<int>(chamberRect.y + 44.0f), Colors::BgPanelBorder);
-
-    if (m_selectedThemeIndex >= 0 && m_selectedThemeIndex < static_cast<int>(m_customThemes.size())) {
-        const auto& theme = m_customThemes[m_selectedThemeIndex];
-        Vector2 previewPos = { chamberRect.x + chamberRect.width * 0.5f, chamberRect.y + chamberRect.height * 0.45f };
-        m_menuRenderer.DrawMinoSkinPreview(theme.previewType, previewPos, 44.0f, m_animTimer, theme.primaryColor, theme.secondaryColor);
-
-        int textW = MeasureText(theme.name.c_str(), 16);
-        DrawText(theme.name.c_str(), static_cast<int>(chamberRect.x + (chamberRect.width - textW) * 0.5f), static_cast<int>(chamberRect.y + chamberRect.height - 80.0f), 16, Colors::TextWhite);
-        const char* note = "Real-time Verlet spring lattice preview";
-        int nw = MeasureText(note, 11);
-        DrawText(note, static_cast<int>(chamberRect.x + (chamberRect.width - nw) * 0.5f), static_cast<int>(chamberRect.y + chamberRect.height - 55.0f), 11, Colors::TextDim);
-    }
-
-    m_menuRenderer.DrawFooterHints({ "[ESC] Return to Main Menu", "[UP / DOWN] Select Skin", "[ENTER / CLICK] Equip Theme" });
 }
 
 void TitleState::RenderSettings(GameApp& app) {
     Vector2 mousePos = GetMousePosition();
     m_menuRenderer.DrawHeaderBanner("SYSTEM CONFIGURATION", "SETTINGS", "CONFIG");
 
-    float startY = 110.0f;
+    float startY = 88.0f;
     float rowW = WINDOW_WIDTH - 120.0f;
-    float rowH = 64.0f;
-    float spacing = 16.0f;
+    float rowH = 40.0f;
+    float spacing = 6.0f;
+
+    const auto& catalog = app.GetMusicManager().GetTrackCatalog();
 
     // 1. Master Audio Volume Slider
     Rectangle r0 = { 60.0f, startY, rowW, rowH };
@@ -774,56 +1004,103 @@ void TitleState::RenderSettings(GameApp& app) {
     snprintf(volBuffer, sizeof(volBuffer), "%d %%", static_cast<int>(m_settings.masterVolume * 100.0f));
     m_menuRenderer.DrawSlider(r0, "MASTER AUDIO VOLUME", m_settings.masterVolume, 0.0f, 1.0f, volBuffer, (m_selectedOption == 0));
 
-    // 2. Screen Shake Intensity
+    // 2. Music Volume Slider
     Rectangle r1 = { 60.0f, startY + (rowH + spacing), rowW, rowH };
     bool h1 = CheckCollisionPointRec(mousePos, r1);
     if (h1 && m_selectedOption != 1) { m_selectedOption = 1; app.GetSoundSynth().PlayMenuHover(); }
-    if (h1 && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
-        m_settings.screenShakeLevel = (m_settings.screenShakeLevel + 1) % 4;
-        app.GetSoundSynth().PlayMenuToggle();
+    if (h1 && IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
+        float norm = (mousePos.x - (r1.x + 220.0f)) / (r1.width - 340.0f);
+        m_settings.musicVolume = std::min(1.0f, std::max(0.0f, norm));
+        app.GetMusicManager().SetVolume(m_settings.musicVolume);
     }
-    const char* shakeLabels[4] = { "DISABLED (0x)", "SUBTLE (0.5x)", "STANDARD (1.0x)", "INTENSE (1.5x)" };
-    m_menuRenderer.DrawSlider(r1, "IMPACT SCREEN SHAKE", static_cast<float>(m_settings.screenShakeLevel), 0.0f, 3.0f, shakeLabels[m_settings.screenShakeLevel], (m_selectedOption == 1));
+    char musicVolBuffer[16];
+    snprintf(musicVolBuffer, sizeof(musicVolBuffer), "%d %%", static_cast<int>(m_settings.musicVolume * 100.0f));
+    m_menuRenderer.DrawSlider(r1, "MUSIC SOUNDTRACK VOLUME", m_settings.musicVolume, 0.0f, 1.0f, musicVolBuffer, (m_selectedOption == 1));
 
-    // 3. CRT Scanlines & Bloom Toggle
+    // 3. SFX Effects Volume Slider
     Rectangle r2 = { 60.0f, startY + 2.0f * (rowH + spacing), rowW, rowH };
     bool h2 = CheckCollisionPointRec(mousePos, r2);
     if (h2 && m_selectedOption != 2) { m_selectedOption = 2; app.GetSoundSynth().PlayMenuHover(); }
-    if (h2 && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
-        m_settings.crtScanlines = !m_settings.crtScanlines;
-        app.GetSoundSynth().PlayMenuToggle();
+    if (h2 && IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
+        float norm = (mousePos.x - (r2.x + 220.0f)) / (r2.width - 340.0f);
+        m_settings.sfxVolume = std::min(1.0f, std::max(0.0f, norm));
     }
-    m_menuRenderer.DrawToggle(r2, "POST-PROCESS CRT SCANLINES & BLOOM", m_settings.crtScanlines, (m_selectedOption == 2));
+    char sfxVolBuffer[16];
+    snprintf(sfxVolBuffer, sizeof(sfxVolBuffer), "%d %%", static_cast<int>(m_settings.sfxVolume * 100.0f));
+    m_menuRenderer.DrawSlider(r2, "SOUND FX VOLUME", m_settings.sfxVolume, 0.0f, 1.0f, sfxVolBuffer, (m_selectedOption == 2));
 
-    // 4. Soft-Body Wobble Intensity
+    // 4. Fixed Gameplay Soundtrack Selection
     Rectangle r3 = { 60.0f, startY + 3.0f * (rowH + spacing), rowW, rowH };
     bool h3 = CheckCollisionPointRec(mousePos, r3);
     if (h3 && m_selectedOption != 3) { m_selectedOption = 3; app.GetSoundSynth().PlayMenuHover(); }
     if (h3 && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
-        m_settings.softBodyWobble = (m_settings.softBodyWobble + 1) % 3;
+        m_settings.fixedSoundtrack = (m_settings.fixedSoundtrack + 1) % 9;
+        app.GetMusicManager().SetFixedTrackIndex(m_settings.fixedSoundtrack);
+        if (m_settings.fixedSoundtrack > 0 && m_settings.fixedSoundtrack <= static_cast<int>(catalog.size())) {
+            app.GetMusicManager().PlayTrack(catalog[m_settings.fixedSoundtrack - 1].id, true);
+        } else {
+            app.GetMusicManager().PlayTrack(TrackId::MenuTheme, true);
+        }
         app.GetSoundSynth().PlayMenuToggle();
     }
-    const char* wobbleLabels[3] = { "RELAXED (MILD SQUISH)", "STANDARD (SPRING LATTICE)", "ULTRA JELLY (MAX ELASTICITY)" };
-    m_menuRenderer.DrawSlider(r3, "SOFT-BODY DEFORMATION DEGREE", static_cast<float>(m_settings.softBodyWobble), 0.0f, 2.0f, wobbleLabels[m_settings.softBodyWobble], (m_selectedOption == 3));
+    std::string trackLabel;
+    if (m_settings.fixedSoundtrack == 0) {
+        trackLabel = "DYNAMIC (CHANGES BY FLOOR SECTOR)";
+    } else {
+        trackLabel = "FIXED: " + std::to_string(m_settings.fixedSoundtrack) + ". " + catalog[m_settings.fixedSoundtrack - 1].title;
+    }
+    m_menuRenderer.DrawSlider(r3, "GAMEPLAY SOUNDTRACK MODE", static_cast<float>(m_settings.fixedSoundtrack), 0.0f, 8.0f, trackLabel.c_str(), (m_selectedOption == 3));
 
-    // 5. Fast DAS / ARR Handling
+    // 5. Screen Shake Intensity
     Rectangle r4 = { 60.0f, startY + 4.0f * (rowH + spacing), rowW, rowH };
     bool h4 = CheckCollisionPointRec(mousePos, r4);
     if (h4 && m_selectedOption != 4) { m_selectedOption = 4; app.GetSoundSynth().PlayMenuHover(); }
     if (h4 && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+        m_settings.screenShakeLevel = (m_settings.screenShakeLevel + 1) % 4;
+        app.GetSoundSynth().PlayMenuToggle();
+    }
+    const char* shakeLabels[4] = { "DISABLED (0x)", "SUBTLE (0.5x)", "STANDARD (1.0x)", "INTENSE (1.5x)" };
+    m_menuRenderer.DrawSlider(r4, "IMPACT SCREEN SHAKE", static_cast<float>(m_settings.screenShakeLevel), 0.0f, 3.0f, shakeLabels[m_settings.screenShakeLevel], (m_selectedOption == 4));
+
+    // 6. CRT Scanlines & Bloom Toggle
+    Rectangle r5 = { 60.0f, startY + 5.0f * (rowH + spacing), rowW, rowH };
+    bool h5 = CheckCollisionPointRec(mousePos, r5);
+    if (h5 && m_selectedOption != 5) { m_selectedOption = 5; app.GetSoundSynth().PlayMenuHover(); }
+    if (h5 && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+        m_settings.crtScanlines = !m_settings.crtScanlines;
+        app.GetSoundSynth().PlayMenuToggle();
+    }
+    m_menuRenderer.DrawToggle(r5, "POST-PROCESS CRT SCANLINES & BLOOM", m_settings.crtScanlines, (m_selectedOption == 5));
+
+    // 7. Soft-Body Wobble Intensity
+    Rectangle r6 = { 60.0f, startY + 6.0f * (rowH + spacing), rowW, rowH };
+    bool h6 = CheckCollisionPointRec(mousePos, r6);
+    if (h6 && m_selectedOption != 6) { m_selectedOption = 6; app.GetSoundSynth().PlayMenuHover(); }
+    if (h6 && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+        m_settings.softBodyWobble = (m_settings.softBodyWobble + 1) % 3;
+        app.GetSoundSynth().PlayMenuToggle();
+    }
+    const char* wobbleLabels[3] = { "RELAXED (MILD SQUISH)", "STANDARD (SPRING LATTICE)", "ULTRA JELLY (MAX ELASTICITY)" };
+    m_menuRenderer.DrawSlider(r6, "SOFT-BODY DEFORMATION DEGREE", static_cast<float>(m_settings.softBodyWobble), 0.0f, 2.0f, wobbleLabels[m_settings.softBodyWobble], (m_selectedOption == 6));
+
+    // 8. Fast DAS / ARR Handling
+    Rectangle r7 = { 60.0f, startY + 7.0f * (rowH + spacing), rowW, rowH };
+    bool h7 = CheckCollisionPointRec(mousePos, r7);
+    if (h7 && m_selectedOption != 7) { m_selectedOption = 7; app.GetSoundSynth().PlayMenuHover(); }
+    if (h7 && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
         m_settings.fastDAS = !m_settings.fastDAS;
         app.GetSoundSynth().PlayMenuToggle();
     }
-    m_menuRenderer.DrawToggle(r4, "TOURNAMENT DAS & ARR RESPONSE (HIGH REPEAT)", m_settings.fastDAS, (m_selectedOption == 4));
+    m_menuRenderer.DrawToggle(r7, "TOURNAMENT DAS & ARR RESPONSE (HIGH REPEAT)", m_settings.fastDAS, (m_selectedOption == 7));
 
     // Keybindings Quick Overview Box
-    Rectangle kbBox = { 60.0f, startY + 5.0f * (rowH + spacing), rowW, 110.0f };
+    Rectangle kbBox = { 60.0f, startY + 8.0f * (rowH + spacing) + 8.0f, rowW, 110.0f };
     DrawRectangleRounded(kbBox, 0.08f, 4, Colors::BgPanel);
     DrawRectangleLinesEx(kbBox, 1.0f, Colors::BgPanelBorder);
     DrawText("DEFAULT INPUT BINDINGS:", static_cast<int>(kbBox.x + 16.0f), static_cast<int>(kbBox.y + 14.0f), 12, Colors::TextAccent);
     DrawText("[LEFT / RIGHT / DOWN] Move & Soft Drop   |   [UP / X] Rotate CW   |   [Z] Rotate CCW", static_cast<int>(kbBox.x + 16.0f), static_cast<int>(kbBox.y + 36.0f), 12, Colors::TextWhite);
     DrawText("[SPACE] Hard Drop   |   [C / SHIFT] Hold Piece   |   [1 / 2] Trigger Active Relic Cards", static_cast<int>(kbBox.x + 16.0f), static_cast<int>(kbBox.y + 58.0f), 12, Colors::TextWhite);
-    DrawText("[P] Pause Game   |   [F1] Toggle Verlet Springs Debug   |   [F2] Card Draft Test", static_cast<int>(kbBox.x + 16.0f), static_cast<int>(kbBox.y + 80.0f), 12, Colors::TextDim);
+    DrawText("[P / ESC] Pause Game   |   [F1] Toggle Verlet Springs Debug   |   [F2] Card Draft Test", static_cast<int>(kbBox.x + 16.0f), static_cast<int>(kbBox.y + 80.0f), 12, Colors::TextDim);
 
     m_menuRenderer.DrawFooterHints({ "[ESC] Return to Main Menu", "[UP / DOWN] Select Setting", "[LEFT / RIGHT / CLICK] Adjust Setting" });
 }
@@ -851,7 +1128,7 @@ void TitleState::RenderQuitConfirm(GameApp& app) {
         return;
     }
     if (hoverConfirm && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
-        CloseWindow();
+        app.RequestExit();
         return;
     }
 

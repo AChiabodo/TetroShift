@@ -63,6 +63,7 @@ private:
     std::vector<ShopItemData> m_shopItems;
     std::vector<CustomThemeData> m_customThemes;
     int m_selectedThemeIndex = 0;
+    int m_selectedJukeboxIndex = 0;
 };
 
 } // namespace TetroShift

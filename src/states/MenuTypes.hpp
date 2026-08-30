@@ -20,7 +20,10 @@ enum class MenuView {
 
 // Global configurable settings
 struct GameSettings {
-    float masterVolume = 0.8f;
+    float masterVolume = 0.80f;
+    float musicVolume = 0.75f;
+    float sfxVolume = 0.85f;
+    int fixedSoundtrack = 0;        // 0: Dynamic by Floor, 1..8: Fixed Soundtrack
     bool isMuted = false;
     int screenShakeLevel = 2;       // 0: Off, 1: Subtle, 2: Normal, 3: Heavy
     bool crtScanlines = true;
