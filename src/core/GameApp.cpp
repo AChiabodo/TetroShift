@@ -12,6 +12,7 @@ static PlayState* g_activePlayState = nullptr;
 GameApp::GameApp() {
     SetConfigFlags(FLAG_MSAA_4X_HINT | FLAG_VSYNC_HINT);
     InitWindow(WINDOW_WIDTH, WINDOW_HEIGHT, WINDOW_TITLE);
+    SetExitKey(KEY_NULL); // Prevent Raylib from closing window directly on ESC
     SetTargetFPS(60);
 
     InitAudioDevice();
