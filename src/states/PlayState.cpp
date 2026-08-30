@@ -1,4 +1,5 @@
 #include "PlayState.hpp"
+#include "TitleState.hpp"
 #include "CardDraftState.hpp"
 #include "GameOverState.hpp"
 #include "core/GameApp.hpp"
@@ -288,9 +289,49 @@ void PlayState::TriggerInstantLineClear(GameApp& app) {
 }
 
 void PlayState::HandleInput(GameApp& app) {
+    // ESC or P toggles Pause
+    if (IsKeyPressed(KEY_ESCAPE) || IsKeyPressed(KEY_P)) {
+        m_isPaused = !m_isPaused;
+        if (m_isPaused) {
+            m_pauseSelectedOption = 0;
+            app.GetSoundSynth().PlayMenuToggle();
+        } else {
+            app.GetSoundSynth().PlayMenuBack();
+        }
+        return;
+    }
+
     if (m_isPaused) {
-        if (IsKeyPressed(KEY_P) || IsKeyPressed(KEY_ESCAPE)) {
-            m_isPaused = false;
+        const int numPauseOptions = 4;
+        if (IsKeyPressed(KEY_UP) || IsKeyPressed(KEY_W)) {
+            m_pauseSelectedOption = (m_pauseSelectedOption - 1 + numPauseOptions) % numPauseOptions;
+            app.GetSoundSynth().PlayMenuHover();
+        }
+        if (IsKeyPressed(KEY_DOWN) || IsKeyPressed(KEY_S)) {
+            m_pauseSelectedOption = (m_pauseSelectedOption + 1) % numPauseOptions;
+            app.GetSoundSynth().PlayMenuHover();
+        }
+
+        if (IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_SPACE)) {
+            switch (m_pauseSelectedOption) {
+                case 0: // Resume
+                    m_isPaused = false;
+                    app.GetSoundSynth().PlayCardSelect();
+                    break;
+                case 1: // Restart Run
+                    m_isPaused = false;
+                    app.GetSoundSynth().PlayCardSelect();
+                    OnEnter(app);
+                    break;
+                case 2: // Toggle Sound Mute
+                    app.GetSoundSynth().SetMuted(!app.GetSoundSynth().IsMuted());
+                    app.GetSoundSynth().PlayMenuToggle();
+                    break;
+                case 3: // Return to Main Menu
+                    app.GetSoundSynth().PlayMenuBack();
+                    app.GetStateManager().SetState(app, std::make_unique<TitleState>());
+                    break;
+            }
         }
         return;
     }
@@ -319,7 +360,94 @@ void PlayState::Update(GameApp& app, float dt) {
     }
 }
 
-void PlayState::Render(GameApp& /*app*/) {
+void PlayState::RenderPauseMenu(GameApp& app) {
+    Vector2 mousePos = GetMousePosition();
+
+    // Dark backdrop
+    DrawRectangle(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT, Fade(BLACK, 0.75f));
+
+    // Pause Modal Card
+    Rectangle modal = { WINDOW_WIDTH * 0.5f - 220.0f, WINDOW_HEIGHT * 0.5f - 220.0f, 440.0f, 440.0f };
+    DrawRectangleRounded(modal, 0.08f, 6, Colors::BgDark);
+    DrawRectangleLinesEx(modal, 2.0f, Colors::PieceI);
+
+    // Header strip
+    Rectangle headerRect = { modal.x + 2.0f, modal.y + 2.0f, modal.width - 4.0f, 44.0f };
+    DrawRectangleRounded(headerRect, 0.08f, 4, Fade(Colors::PieceI, 0.2f));
+    DrawText("TACTICAL PAUSE // SUSPENDED", static_cast<int>(headerRect.x + 20.0f), static_cast<int>(headerRect.y + 14.0f), 16, Colors::TextWhite);
+
+    // Mini Stats Capsule
+    Rectangle statsRect = { modal.x + 20.0f, modal.y + 56.0f, modal.width - 40.0f, 40.0f };
+    DrawRectangleRounded(statsRect, 0.15f, 4, Colors::BgPanel);
+    DrawRectangleLinesEx(statsRect, 1.0f, Colors::BgPanelBorder);
+
+    std::string statsStr = "FL: " + std::to_string(m_runManager.GetFloor()) +
+                           "  |  SCORE: " + std::to_string(m_runManager.GetScore()) +
+                           "  |  LINES: " + std::to_string(m_runManager.GetLinesTotal()) +
+                           "  |  $" + std::to_string(m_runManager.GetInventory().GetCoins());
+    DrawText(statsStr.c_str(), static_cast<int>(statsRect.x + 14.0f), static_cast<int>(statsRect.y + 13.0f), 12, Colors::TextAccent);
+
+    // 4 Pause Menu Buttons
+    struct PauseBtn {
+        const char* label;
+        const char* badge;
+        Color accent;
+    };
+
+    std::string audioBadge = app.GetSoundSynth().IsMuted() ? "MUTED" : "ACTIVE";
+    const PauseBtn btns[] = {
+        { "RESUME MISSION", "[ESC/P]", Colors::TextGreen },
+        { "RESTART RUN", "RETRY", Colors::PieceGold },
+        { app.GetSoundSynth().IsMuted() ? "AUDIO: UNMUTE" : "AUDIO: MUTE", audioBadge.c_str(), Colors::PieceT },
+        { "ABANDON RUN & MENU", "QUIT", Colors::PieceBomb }
+    };
+
+    float startY = modal.y + 112.0f;
+    float btnH = 50.0f;
+    float spacing = 12.0f;
+
+    for (int i = 0; i < 4; ++i) {
+        Rectangle bRect = { modal.x + 20.0f, startY + static_cast<float>(i) * (btnH + spacing), modal.width - 40.0f, btnH };
+        bool isHovered = CheckCollisionPointRec(mousePos, bRect);
+        bool isSelected = (m_pauseSelectedOption == i);
+
+        if (isHovered && !isSelected) {
+            m_pauseSelectedOption = i;
+            app.GetSoundSynth().PlayMenuHover();
+        }
+
+        if (isHovered && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+            switch (i) {
+                case 0:
+                    m_isPaused = false;
+                    app.GetSoundSynth().PlayCardSelect();
+                    break;
+                case 1:
+                    m_isPaused = false;
+                    app.GetSoundSynth().PlayCardSelect();
+                    OnEnter(app);
+                    break;
+                case 2:
+                    app.GetSoundSynth().SetMuted(!app.GetSoundSynth().IsMuted());
+                    app.GetSoundSynth().PlayMenuToggle();
+                    break;
+                case 3:
+                    app.GetSoundSynth().PlayMenuBack();
+                    app.GetStateManager().SetState(app, std::make_unique<TitleState>());
+                    return;
+            }
+        }
+
+        m_menuRenderer.DrawNeonButton(bRect, btns[i].label, btns[i].badge, isSelected, isHovered, btns[i].accent);
+    }
+
+    // Modal Footer Hint
+    const char* hint = "[ESC / P] Resume  *  [ARROWS / MOUSE] Navigate  *  [ENTER] Select";
+    int hw = MeasureText(hint, 10);
+    DrawText(hint, static_cast<int>(modal.x + (modal.width - hw) * 0.5f), static_cast<int>(modal.y + modal.height - 20.0f), 10, Colors::TextDim);
+}
+
+void PlayState::Render(GameApp& app) {
     ClearBackground(Colors::BgDark);
 
     m_renderer.RenderGameHUD(
@@ -333,13 +461,7 @@ void PlayState::Render(GameApp& /*app*/) {
     );
 
     if (m_isPaused) {
-        DrawRectangle(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT, Fade(BLACK, 0.6f));
-        const char* pauseText = "GAME PAUSED";
-        int w = MeasureText(pauseText, 36);
-        DrawText(pauseText, (WINDOW_WIDTH - w) / 2, WINDOW_HEIGHT / 2 - 20, 36, Colors::TextWhite);
-        const char* resumeText = "PRESS [P] OR [ESC] TO RESUME";
-        int rw = MeasureText(resumeText, 14);
-        DrawText(resumeText, (WINDOW_WIDTH - rw) / 2, WINDOW_HEIGHT / 2 + 30, 14, Colors::TextDim);
+        RenderPauseMenu(app);
     }
 }
 

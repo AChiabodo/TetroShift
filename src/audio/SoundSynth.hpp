@@ -25,9 +25,15 @@ public:
     void PlayCardSelect();
     void PlayGameOver();
     void PlayLevelUp();
+    void PlayMenuHover();
+    void PlayMenuBack();
+    void PlayMenuToggle();
 
-    void SetMuted(bool muted) noexcept { m_isMuted = muted; }
+    void SetMuted(bool muted) noexcept;
     [[nodiscard]] bool IsMuted() const noexcept { return m_isMuted; }
+
+    void SetMasterVolume(float volume) noexcept;
+    [[nodiscard]] float GetMasterVolume() const noexcept { return m_masterVolume; }
 
 private:
     [[nodiscard]] Sound GenerateTone(float freqStart, float freqEnd, float durationSeconds, float volume = 0.5f, int waveType = 0);
@@ -35,6 +41,7 @@ private:
 
     bool m_initialized = false;
     bool m_isMuted = false;
+    float m_masterVolume = 0.8f;
 
     Sound m_sndMove{};
     Sound m_sndRotate{};
@@ -47,6 +54,9 @@ private:
     Sound m_sndCardSelect{};
     Sound m_sndGameOver{};
     Sound m_sndLevelUp{};
+    Sound m_sndMenuHover{};
+    Sound m_sndMenuBack{};
+    Sound m_sndMenuToggle{};
 };
 
 } // namespace TetroShift

@@ -7,6 +7,7 @@
 #include "render/ParticleSystem.hpp"
 #include "render/ScreenEffects.hpp"
 #include "render/Renderer.hpp"
+#include "render/MenuRenderer.hpp"
 #include <memory>
 
 namespace TetroShift {
@@ -35,6 +36,7 @@ public:
 private:
     void HandleMovementInput(GameApp& app, float dt);
     void TriggerInstantLineClear(GameApp& app);
+    void RenderPauseMenu(GameApp& app);
 
     std::unique_ptr<IGrid> m_grid;
     ActivePiece m_activePiece;
@@ -43,6 +45,7 @@ private:
     ParticleSystem m_particles;
     ScreenEffects m_screenEffects;
     Renderer m_renderer;
+    MenuRenderer m_menuRenderer;
 
     // DAS / ARR state
     float m_dasTimer = 0.0f;
@@ -51,6 +54,7 @@ private:
 
     bool m_showDebugPhysics = false;
     bool m_isPaused = false;
+    int m_pauseSelectedOption = 0;
 };
 
 } // namespace TetroShift
