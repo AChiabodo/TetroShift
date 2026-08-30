@@ -25,6 +25,7 @@ public:
 
     void DrawCardUI(const struct Card& card, Rectangle bounds, bool isSelected = false, bool isHovered = false) const;
     void DrawPanelFrame(Rectangle bounds, const char* title = nullptr, Color borderColor = Colors::BgPanelBorder) const;
+    void DrawNowPlayingBanner(const char* title, const char* genre, float alpha) const;
 
 private:
     void DrawHoldPanel(const PieceSpawner& spawner, Rectangle bounds) const;

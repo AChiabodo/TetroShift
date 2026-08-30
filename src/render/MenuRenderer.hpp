@@ -86,6 +86,7 @@ public:
     ) const;
 
     void DrawModalFrame(Rectangle bounds, const char* title) const;
+    void DrawNowPlayingBanner(const char* title, const char* genre, float alpha) const;
 };
 
 } // namespace TetroShift

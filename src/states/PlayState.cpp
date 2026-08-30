@@ -32,8 +32,30 @@ void PlayState::OnEnter(GameApp& app) {
             CardContext ctx{ &m_runManager, &m_activePiece, m_grid.get(), &m_spawner, &app.GetEventBus() };
             m_runManager.GetInventory().AddCard(*card, ctx);
             m_runManager.AdvanceFloor();
+
+            // Check if track changes on floor transition (only if dynamic mode)
+            if (app.GetMusicManager().GetFixedTrackIndex() == 0) {
+                int floor = m_runManager.GetFloor();
+                TrackId theme = TrackId::EarlyFloorTheme;
+                if (floor >= 10) theme = TrackId::BossFloorTheme;
+                else if (floor >= 7) theme = TrackId::HighFloorTheme;
+                else if (floor >= 4) theme = TrackId::MidFloorTheme;
+                app.GetMusicManager().PlayTrack(theme, true);
+            }
         }
     });
+
+    // Start floor soundtrack (respecting fixed track preference)
+    if (app.GetMusicManager().GetFixedTrackIndex() > 0) {
+        app.GetMusicManager().PlayTrack(app.GetMusicManager().GetFixedTrackId(), true);
+    } else {
+        int initialFloor = m_runManager.GetFloor();
+        TrackId initialTheme = TrackId::EarlyFloorTheme;
+        if (initialFloor >= 10) initialTheme = TrackId::BossFloorTheme;
+        else if (initialFloor >= 7) initialTheme = TrackId::HighFloorTheme;
+        else if (initialFloor >= 4) initialTheme = TrackId::MidFloorTheme;
+        app.GetMusicManager().PlayTrack(initialTheme, true);
+    }
 
     SpawnNextPiece(app);
 }
@@ -358,6 +380,27 @@ void PlayState::Update(GameApp& app, float dt) {
     if (m_activePiece.IsLocked()) {
         HandlePieceLock(app);
     }
+
+    // Dynamic music urgency modulation based on highest occupied row
+    int highestOccupiedRow = GRID_HEIGHT;
+    for (int y = 0; y < GRID_HEIGHT; ++y) {
+        bool rowOccupied = false;
+        for (int x = 0; x < GRID_WIDTH; ++x) {
+            if (m_grid->IsCellOccupied({x, y})) {
+                rowOccupied = true;
+                break;
+            }
+        }
+        if (rowOccupied) {
+            highestOccupiedRow = y;
+            break;
+        }
+    }
+    float urgency = 0.0f;
+    if (highestOccupiedRow < 10) {
+        urgency = static_cast<float>(10 - highestOccupiedRow) / 10.0f;
+    }
+    app.GetMusicManager().SetUrgencyFactor(urgency);
 }
 
 void PlayState::RenderPauseMenu(GameApp& app) {
@@ -459,6 +502,15 @@ void PlayState::Render(GameApp& app) {
         m_screenEffects,
         m_showDebugPhysics
     );
+
+    // HUD Now Playing Banner
+    if (app.GetMusicManager().IsNowPlayingVisible()) {
+        m_renderer.DrawNowPlayingBanner(
+            app.GetMusicManager().GetNowPlayingTitle().c_str(),
+            app.GetMusicManager().GetNowPlayingGenre().c_str(),
+            app.GetMusicManager().GetNowPlayingAlpha()
+        );
+    }
 
     if (m_isPaused) {
         RenderPauseMenu(app);

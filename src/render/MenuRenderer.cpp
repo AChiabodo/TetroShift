@@ -489,4 +489,22 @@ void MenuRenderer::DrawModalFrame(Rectangle bounds, const char* title) const {
     DrawText(title, static_cast<int>(headerRect.x + 18.0f), static_cast<int>(headerRect.y + 12.0f), 16, Colors::TextWhite);
 }
 
+void MenuRenderer::DrawNowPlayingBanner(const char* title, const char* genre, float alpha) const {
+    if (alpha <= 0.001f || !title) return;
+
+    std::string text = std::string("♪ NOW PLAYING: ") + title;
+    if (genre && genre[0] != '\0') {
+        text += " [" + std::string(genre) + "]";
+    }
+
+    int textW = MeasureText(text.c_str(), 12);
+    float boxW = static_cast<float>(textW + 36);
+    float boxH = 28.0f;
+    Rectangle pill = { (WINDOW_WIDTH - boxW) * 0.5f, 14.0f, boxW, boxH };
+
+    DrawRectangleRounded(pill, 0.4f, 4, Fade(Colors::BgPanel, alpha * 0.90f));
+    DrawRectangleLinesEx(pill, 1.2f, Fade(Colors::PieceI, alpha * 0.85f));
+    DrawText(text.c_str(), static_cast<int>(pill.x + 18.0f), static_cast<int>(pill.y + 7.0f), 12, Fade(Colors::PieceI, alpha));
+}
+
 } // namespace TetroShift

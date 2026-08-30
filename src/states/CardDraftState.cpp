@@ -14,6 +14,9 @@ void CardDraftState::OnEnter(GameApp& app) {
     m_selectedIndex = 0;
     m_hoveredIndex = -1;
 
+    // Crossfade to ambient draft contemplation soundtrack
+    app.GetMusicManager().PlayTrack(TrackId::DraftTheme, true);
+
     // Generate choices
     m_choices = app.GetCardDatabase().GenerateDraftChoices(3, app.GetPlayStateInventory(), m_floorNumber);
 }

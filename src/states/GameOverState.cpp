@@ -11,9 +11,10 @@ namespace TetroShift {
 GameOverState::GameOverState(int score, int floor, int lines)
     : m_finalScore(score), m_finalFloor(floor), m_finalLines(lines) {}
 
-void GameOverState::OnEnter(GameApp& /*app*/) {
+void GameOverState::OnEnter(GameApp& app) {
     m_animTimer = 0.0f;
     m_selectedOption = 0;
+    app.GetMusicManager().PlayTrack(TrackId::GameOverTheme, true);
 }
 
 void GameOverState::OnExit(GameApp& /*app*/) {}
