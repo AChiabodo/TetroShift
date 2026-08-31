@@ -200,17 +200,17 @@ void CardDatabase::RegisterAllCards() {
         m_cards.push_back(c);
     }
 
-    // 12. Sub-Atomic Shatter (Epic Relic)
+    // 12. Sub-Atomic Sand Shatter (Epic Relic)
     {
         Card c;
         c.id = "CARD_MINO_SHATTER";
-        c.title = "Frammentazione Sub-Atomica";
-        c.description = "I pezzi al lock rilasciano micro-frammenti che colmano automaticamente i vuoti d'aria sottostanti.";
+        c.title = "Disgregazione Silicea";
+        c.description = "Il 20% dei pezzi generati e composto da Sabbia Fluida che si disintegra e cola nei buchi della matrice.";
         c.rarity = CardRarity::Epic;
         c.category = CardCategory::PassiveRelic;
         c.cost = 40;
-        c.onPieceLock = [](const CardContext& ctx) {
-            if (ctx.grid) ctx.grid->CollapseFloatingCells();
+        c.onAcquire = [](const CardContext& ctx) {
+            if (ctx.spawner) ctx.spawner->SetSandChance(0.20f);
         };
         m_cards.push_back(c);
     }

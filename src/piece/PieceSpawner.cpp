@@ -93,6 +93,9 @@ CellType PieceSpawner::DetermineSpawnCellType() {
     if (roll < (m_bombChance + m_jellyChance)) {
         return CellType::Jelly;
     }
+    if (roll < (m_bombChance + m_jellyChance + m_sandChance)) {
+        return CellType::Sand;
+    }
 
     return CellType::Solid;
 }

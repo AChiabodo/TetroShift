@@ -33,6 +33,7 @@ constexpr float SPRING_DAMPING_DEFAULT = 7.5f;
 constexpr float WOBBLE_IMPULSE_MOVE = 8.0f;
 constexpr float WOBBLE_IMPULSE_ROTATE = 16.0f;
 constexpr float WOBBLE_IMPULSE_DROP = 24.0f;
+constexpr float SAND_TICK_INTERVAL = 0.04f;
 
 // Color Palette (Cyberpunk / Neon Synth aesthetic)
 namespace Colors {
@@ -58,6 +59,7 @@ namespace Colors {
     constexpr Color PieceGold      = { 255, 215, 0, 255 };    // Shiny Gold
     constexpr Color PieceJelly     = { 0, 255, 200, 255 };    // Aquamarine Jelly
     constexpr Color PieceIron      = { 160, 170, 190, 255 };  // Metallic Silver
+    constexpr Color PieceSand      = { 235, 185, 90, 255 };   // Golden Sand Amber
 
     // Card Rarity Colors
     constexpr Color RarityCommon   = { 150, 170, 190, 255 };  // Grayish Cyan

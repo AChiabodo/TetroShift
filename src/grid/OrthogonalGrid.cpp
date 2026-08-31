@@ -65,6 +65,12 @@ void OrthogonalGrid::SetCell(const GridCoord& coord, const Cell& cell) {
 }
 
 void OrthogonalGrid::Update(float dt) {
+    m_sandTimer += dt;
+    while (m_sandTimer >= SAND_TICK_INTERVAL) {
+        m_sandTimer -= SAND_TICK_INTERVAL;
+        UpdateSandPhysics();
+    }
+
     for (auto& cell : m_cells) {
         if (cell.flashTimer > 0.0f) {
             cell.flashTimer = std::max(0.0f, cell.flashTimer - dt * 3.0f);
@@ -154,7 +160,52 @@ LineClearResult OrthogonalGrid::CheckAndClearLines() {
     return result;
 }
 
+bool OrthogonalGrid::UpdateSandPhysics() {
+    bool movedAny = false;
+    // Scan bottom-to-top so falling grains don't teleport down in a single tick
+    for (int y = m_height - 2; y >= -m_bufferHeight; --y) {
+        for (int step = 0; step < m_width; ++step) {
+            int x = (y % 2 == 0) ? step : (m_width - 1 - step);
+            const int idx = CoordToIndex({ x, y });
+            if (idx < 0) continue;
+
+            if (m_cells[idx].type == CellType::Sand) {
+                GridCoord below{ x, y + 1 };
+                if (below.y < m_height && !IsCellOccupied(below)) {
+                    // Straight drop downward
+                    int belowIdx = CoordToIndex(below);
+                    m_cells[belowIdx] = m_cells[idx];
+                    m_cells[idx].Clear();
+                    movedAny = true;
+                } else if (below.y < m_height) {
+                    // Try sliding diagonally down-left or down-right
+                    bool preferLeft = ((x + y) % 2 == 0);
+                    GridCoord diag1 = preferLeft ? GridCoord{ x - 1, y + 1 } : GridCoord{ x + 1, y + 1 };
+                    GridCoord side1 = preferLeft ? GridCoord{ x - 1, y } : GridCoord{ x + 1, y };
+                    GridCoord diag2 = preferLeft ? GridCoord{ x + 1, y + 1 } : GridCoord{ x - 1, y + 1 };
+                    GridCoord side2 = preferLeft ? GridCoord{ x + 1, y } : GridCoord{ x - 1, y };
+
+                    if (diag1.x >= 0 && diag1.x < m_width && diag1.y < m_height && !IsCellOccupied(diag1) && !IsCellOccupied(side1)) {
+                        int targetIdx = CoordToIndex(diag1);
+                        m_cells[targetIdx] = m_cells[idx];
+                        m_cells[idx].Clear();
+                        movedAny = true;
+                    } else if (diag2.x >= 0 && diag2.x < m_width && diag2.y < m_height && !IsCellOccupied(diag2) && !IsCellOccupied(side2)) {
+                        int targetIdx = CoordToIndex(diag2);
+                        m_cells[targetIdx] = m_cells[idx];
+                        m_cells[idx].Clear();
+                        movedAny = true;
+                    }
+                }
+            }
+        }
+    }
+    return movedAny;
+}
+
 void OrthogonalGrid::ExplodeArea(const GridCoord& center, int radius, std::vector<GridCoord>& outDestroyed) {
+    std::vector<GridCoord> secondaryBombs;
+
     for (int dy = -radius; dy <= radius; ++dy) {
         for (int dx = -radius; dx <= radius; ++dx) {
             GridCoord target{ center.x + dx, center.y + dy };
@@ -162,10 +213,18 @@ void OrthogonalGrid::ExplodeArea(const GridCoord& center, int radius, std::vecto
                 int idx = CoordToIndex(target);
                 if (idx >= 0 && m_cells[idx].IsSolid()) {
                     outDestroyed.push_back(target);
+                    if (m_cells[idx].type == CellType::Bomb && (dx != 0 || dy != 0)) {
+                        secondaryBombs.push_back(target);
+                    }
                     m_cells[idx].Clear();
                 }
             }
         }
+    }
+
+    // Cascade chain reactions for adjacent bombs
+    for (const auto& sb : secondaryBombs) {
+        ExplodeArea(sb, radius, outDestroyed);
     }
 }
 
@@ -264,6 +323,10 @@ void OrthogonalGrid::Render(Vector2 gridOrigin, float cellSize, bool showDebugHi
                 DrawCircleLines(static_cast<int>(worldPos.x + cellSize * 0.5f), static_cast<int>(worldPos.y + cellSize * 0.5f), cellSize * 0.3f, GOLD);
             } else if (cell.type == CellType::Jelly) {
                 DrawCircle(static_cast<int>(worldPos.x + cellSize * 0.5f), static_cast<int>(worldPos.y + cellSize * 0.5f), cellSize * 0.2f, Fade(WHITE, 0.5f));
+            } else if (cell.type == CellType::Sand) {
+                DrawCircle(static_cast<int>(worldPos.x + cellSize * 0.35f), static_cast<int>(worldPos.y + cellSize * 0.35f), 1.5f, Fade(WHITE, 0.6f));
+                DrawCircle(static_cast<int>(worldPos.x + cellSize * 0.65f), static_cast<int>(worldPos.y + cellSize * 0.65f), 1.5f, Fade(DARKGRAY, 0.4f));
+                DrawCircle(static_cast<int>(worldPos.x + cellSize * 0.35f), static_cast<int>(worldPos.y + cellSize * 0.70f), 1.2f, Fade(WHITE, 0.4f));
             }
 
             // Debug hitboxes

@@ -40,12 +40,15 @@ public:
     [[nodiscard]] std::vector<std::string> Serialize() const override;
     void Deserialize(const std::vector<std::string>& data) override;
 
+    bool UpdateSandPhysics();
+
 private:
     [[nodiscard]] int CoordToIndex(const GridCoord& coord) const noexcept;
 
     int m_width = 10;
     int m_height = 20;
     int m_bufferHeight = 4;
+    float m_sandTimer = 0.0f;
     std::vector<Cell> m_cells;
     Cell m_emptyCell;
 };

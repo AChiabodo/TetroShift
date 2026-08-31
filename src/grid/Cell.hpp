@@ -12,7 +12,8 @@ enum class CellType : uint8_t {
     Bomb,
     Gold,
     QuantumGhost,
-    Glitch
+    Glitch,
+    Sand
 };
 
 struct Cell {

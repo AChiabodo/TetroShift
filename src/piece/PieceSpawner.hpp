@@ -34,6 +34,7 @@ public:
     void SetMidasFrequency(int everyNPieces) noexcept { m_midasFrequency = everyNPieces; }
     void SetBombChance(float chance) noexcept { m_bombChance = chance; }
     void SetJellyChance(float chance) noexcept { m_jellyChance = chance; }
+    void SetSandChance(float chance) noexcept { m_sandChance = chance; }
 
     [[nodiscard]] CellType DetermineSpawnCellType();
 
@@ -52,6 +53,7 @@ private:
     int m_midasFrequency = 0; // 0 = disabled, >0 = every N pieces
     float m_bombChance = 0.0f;
     float m_jellyChance = 0.0f;
+    float m_sandChance = 0.0f;
 };
 
 } // namespace TetroShift
