@@ -8,16 +8,25 @@
 
 namespace TetroShift {
 
-PlayState::PlayState(int activeSlot, std::optional<SavedRunState> restoredRun)
-    : m_activeSlot(activeSlot), m_restoredRun(std::move(restoredRun)) {
+PlayState::PlayState(GameMode mode, int activeSlot, std::optional<SavedRunState> restoredRun, uint32_t customSeed)
+    : m_gameMode(mode), m_activeSlot(activeSlot), m_restoredRun(std::move(restoredRun)), m_customSeed(customSeed) {
     m_grid = std::make_unique<OrthogonalGrid>(GRID_WIDTH, GRID_HEIGHT, GRID_BUFFER_HEIGHT);
+}
+
+void PlayState::UpdateMarathonSpeed() {
+    float baseInterval = std::pow(0.8f - ((static_cast<float>(m_marathonLevel) - 1.0f) * 0.007f), static_cast<float>(m_marathonLevel - 1));
+    m_marathonFallInterval = std::clamp(baseInterval, 0.05f, 1.0f);
 }
 
 SavedRunState PlayState::ExportCurrentRunState() const {
     SavedRunState state;
     state.slotId = m_activeSlot;
     state.state = SaveSlotState::ActiveRun;
-    state.runMode = "ROGUELIKE RUN // SECTOR 0" + std::to_string(m_runManager.GetFloor());
+    state.gameMode = m_gameMode;
+    state.runMode = (m_gameMode == GameMode::Marathon) ? "MARATHON RUN" :
+                    (m_gameMode == GameMode::DailyProtocol) ? ("DAILY " + SaveManager::GetDailyDateString()) :
+                    (m_gameMode == GameMode::Sandbox) ? "SANDBOX LAB" :
+                    ("ROGUELIKE // FL " + std::to_string(m_runManager.GetFloor()));
     state.floor = m_runManager.GetFloor();
     state.score = m_runManager.GetScore();
     state.linesTotal = m_runManager.GetLinesTotal();
@@ -46,7 +55,10 @@ SavedRunState PlayState::ExportCurrentRunState() const {
 
 void PlayState::OnEnter(GameApp& app) {
     m_grid->Clear();
-    m_spawner.Reset(1337);
+
+    uint32_t seed = (m_gameMode == GameMode::DailyProtocol) ?
+                    ((m_customSeed != 0) ? m_customSeed : SaveManager::ComputeDailySeed()) : 1337;
+    m_spawner.Reset(seed);
     m_runManager.Reset();
     m_particles.Reset();
     m_screenEffects.Reset();
@@ -57,9 +69,20 @@ void PlayState::OnEnter(GameApp& app) {
     m_showDebugPhysics = false;
     m_isPaused = false;
 
+    if (m_gameMode == GameMode::Marathon) {
+        m_marathonLevel = 1;
+        UpdateMarathonSpeed();
+    } else if (m_gameMode == GameMode::Sandbox) {
+        m_sandboxZeroGravity = false;
+        m_sandboxSelectedPiece = 0;
+        m_sandboxSelectedMinoType = 0;
+        m_sandboxElasticity = 1.0f;
+    }
+
     // Check if we are restoring a suspended saved run!
     if (m_restoredRun.has_value()) {
         const auto& saved = *m_restoredRun;
+        m_gameMode = saved.gameMode;
         m_runManager.SetScore(saved.score);
         m_runManager.SetFloor(saved.floor);
         m_runManager.SetLinesTotal(saved.linesTotal);
@@ -112,15 +135,18 @@ void PlayState::OnEnter(GameApp& app) {
         }
     }
 
-    // Start floor soundtrack (respecting fixed track preference)
+    // Start soundtrack (respecting fixed track preference)
     if (app.GetMusicManager().GetFixedTrackIndex() > 0) {
         app.GetMusicManager().PlayTrack(app.GetMusicManager().GetFixedTrackId(), true);
     } else {
         int initialFloor = m_runManager.GetFloor();
-        TrackId initialTheme = TrackId::EarlyFloorTheme;
-        if (initialFloor >= 10) initialTheme = TrackId::BossFloorTheme;
-        else if (initialFloor >= 7) initialTheme = TrackId::HighFloorTheme;
-        else if (initialFloor >= 4) initialTheme = TrackId::MidFloorTheme;
+        TrackId initialTheme = (m_gameMode == GameMode::Marathon) ? TrackId::MidFloorTheme :
+                               (m_gameMode == GameMode::Sandbox) ? TrackId::MenuTheme : TrackId::EarlyFloorTheme;
+        if (m_gameMode == GameMode::Roguelike) {
+            if (initialFloor >= 10) initialTheme = TrackId::BossFloorTheme;
+            else if (initialFloor >= 7) initialTheme = TrackId::HighFloorTheme;
+            else if (initialFloor >= 4) initialTheme = TrackId::MidFloorTheme;
+        }
         app.GetMusicManager().PlayTrack(initialTheme, true);
     }
 
@@ -132,7 +158,7 @@ void PlayState::OnExit(GameApp& /*app*/) {}
 
 void PlayState::SpawnNextPiece(GameApp& app) {
     TetrominoType nextType = m_spawner.PopNext();
-    CellType minoType = m_spawner.DetermineSpawnCellType();
+    CellType minoType = (m_gameMode == GameMode::Marathon) ? CellType::Solid : m_spawner.DetermineSpawnCellType();
     float elasticity = m_runManager.GetGlobalElasticity();
 
     // Standard spawn position for 10-wide grid
@@ -151,7 +177,7 @@ void PlayState::SpawnNextPiece(GameApp& app) {
     for (const auto& c : coords) {
         if (m_grid->IsCellOccupied(c)) {
             // Check if Deflector Shield saves the player!
-            if (m_runManager.GetInventory().ConsumeShield()) {
+            if (m_gameMode != GameMode::Marathon && m_runManager.GetInventory().ConsumeShield()) {
                 app.GetSoundSynth().PlayLevelUp();
                 app.GetSoundSynth().PlayLineClear(4);
                 m_screenEffects.TriggerFlash(GOLD, 0.6f);
@@ -172,18 +198,23 @@ void PlayState::SpawnNextPiece(GameApp& app) {
                 m_runManager.GetLinesTotal(),
                 false
             );
-            app.GetSaveManager().DeleteRunSlot(m_activeSlot);
+            if (m_gameMode == GameMode::Roguelike) {
+                app.GetSaveManager().DeleteRunSlot(m_activeSlot);
+            }
 
             HighScoreEntry entry;
             entry.pilotName = app.GetSaveManager().GetProfile().pilotCallsign;
             entry.score = m_runManager.GetScore();
-            entry.floorReached = m_runManager.GetFloor();
+            entry.floorReached = (m_gameMode == GameMode::Marathon) ? m_marathonLevel : m_runManager.GetFloor();
             entry.linesCleared = m_runManager.GetLinesTotal();
+            entry.gameModeName = (m_gameMode == GameMode::Marathon) ? "MARATHON" :
+                                 (m_gameMode == GameMode::DailyProtocol) ? "DAILY" :
+                                 (m_gameMode == GameMode::Sandbox) ? "SANDBOX" : "ROGUELIKE";
             app.GetSaveManager().AddHighScoreEntry(entry);
 
             app.GetStateManager().SetState(app, std::make_unique<GameOverState>(
                 m_runManager.GetScore(),
-                m_runManager.GetFloor(),
+                (m_gameMode == GameMode::Marathon) ? m_marathonLevel : m_runManager.GetFloor(),
                 m_runManager.GetLinesTotal()
             ));
             return;
@@ -305,13 +336,38 @@ void PlayState::HandlePieceLock(GameApp& app) {
         // Register with run manager
         m_runManager.RegisterLineClear(clearResult.linesCount, clearResult.linesCount >= 4, ctx, tspin);
 
-        // Check if floor cleared and draft pending
-        if (m_runManager.IsDraftPending()) {
-            m_runManager.ConsumeDraftFlag();
+        // Check Marathon 150 Lines Victory!
+        if (m_gameMode == GameMode::Marathon && m_runManager.GetLinesTotal() >= 150) {
             app.GetSoundSynth().PlayLevelUp();
-            m_screenEffects.TriggerFlash(GOLD, 0.5f);
-            app.GetStateManager().PushOverlay(app, std::make_unique<CardDraftState>(m_runManager.GetFloor()));
+            m_screenEffects.TriggerFlash(GOLD, 0.8f);
+            app.GetSaveManager().AwardRunResults(m_runManager.GetScore(), m_marathonLevel, m_runManager.GetLinesTotal(), true);
+
+            HighScoreEntry entry;
+            entry.pilotName = app.GetSaveManager().GetProfile().pilotCallsign;
+            entry.score = m_runManager.GetScore();
+            entry.floorReached = m_marathonLevel;
+            entry.linesCleared = m_runManager.GetLinesTotal();
+            entry.gameModeName = "MARATHON";
+            entry.badge = "MARATHON CHAMPION";
+            app.GetSaveManager().AddHighScoreEntry(entry);
+
+            app.GetStateManager().SetState(app, std::make_unique<GameOverState>(
+                m_runManager.GetScore(),
+                m_marathonLevel,
+                m_runManager.GetLinesTotal()
+            ));
             return;
+        }
+
+        // Check if floor cleared and draft pending (only in Roguelike / Daily)
+        if (m_gameMode == GameMode::Roguelike || m_gameMode == GameMode::DailyProtocol) {
+            if (m_runManager.IsDraftPending()) {
+                m_runManager.ConsumeDraftFlag();
+                app.GetSoundSynth().PlayLevelUp();
+                m_screenEffects.TriggerFlash(GOLD, 0.5f);
+                app.GetStateManager().PushOverlay(app, std::make_unique<CardDraftState>(m_runManager.GetFloor()));
+                return;
+            }
         }
     } else {
         m_runManager.RegisterLineClear(0, false, ctx, TSpinType::None);
@@ -328,27 +384,29 @@ void PlayState::HandleMovementInput(GameApp& app, float dt) {
     if (IsKeyDown(KEY_RIGHT) || IsKeyDown(KEY_D)) currentDir = +1;
 
     // Apply Glitch Matrix hazard command inversion
-    if (m_hazardManager.AreControlsInverted()) {
+    if (m_hazardManager.AreControlsInverted() && m_gameMode == GameMode::Roguelike) {
         currentDir = -currentDir;
     }
 
     if (currentDir != 0) {
-        if (m_heldDirection != currentDir) {
-            // First tap
+        if (currentDir != m_heldDirection) {
+            // New press: immediate shift
             m_heldDirection = currentDir;
             m_dasTimer = 0.0f;
             m_arrTimer = 0.0f;
-            if (m_activePiece.TryMove(GridCoord{ currentDir, 0 }, *m_grid, &app.GetEventBus())) {
+            if (m_activePiece.TryMove(GridCoord{ m_heldDirection, 0 }, *m_grid, &app.GetEventBus())) {
                 app.GetSoundSynth().PlayMove();
             }
         } else {
-            // Key is held
+            // Key held down
             m_dasTimer += dt;
             if (m_dasTimer >= DAS_DELAY) {
                 m_arrTimer += dt;
                 while (m_arrTimer >= ARR_INTERVAL) {
                     m_arrTimer -= ARR_INTERVAL;
-                    m_activePiece.TryMove(GridCoord{ currentDir, 0 }, *m_grid, &app.GetEventBus());
+                    if (m_activePiece.TryMove(GridCoord{ m_heldDirection, 0 }, *m_grid, &app.GetEventBus())) {
+                        app.GetSoundSynth().PlayMove();
+                    }
                 }
             }
         }
@@ -358,118 +416,145 @@ void PlayState::HandleMovementInput(GameApp& app, float dt) {
         m_arrTimer = 0.0f;
     }
 
-    // 2. Rotations
-    if (IsKeyPressed(KEY_UP) || IsKeyPressed(KEY_X) || IsKeyPressed(KEY_W)) {
-        if (m_activePiece.TryRotate(+1, *m_grid, &app.GetEventBus())) {
+    // 2. Rotations (SRS Wall Kicks)
+    if (IsKeyPressed(KEY_UP) || IsKeyPressed(KEY_W) || IsKeyPressed(KEY_X)) {
+        int dir = (m_hazardManager.AreControlsInverted() && m_gameMode == GameMode::Roguelike) ? -1 : 1;
+        if (m_activePiece.TryRotate(dir, *m_grid, &app.GetEventBus())) {
             app.GetSoundSynth().PlayRotate();
         }
     }
-    if (IsKeyPressed(KEY_Z) || IsKeyPressed(KEY_LEFT_CONTROL)) {
-        if (m_activePiece.TryRotate(-1, *m_grid, &app.GetEventBus())) {
+    if (IsKeyPressed(KEY_Z)) {
+        int dir = (m_hazardManager.AreControlsInverted() && m_gameMode == GameMode::Roguelike) ? 1 : -1;
+        if (m_activePiece.TryRotate(dir, *m_grid, &app.GetEventBus())) {
             app.GetSoundSynth().PlayRotate();
         }
     }
 
     // 3. Hard Drop
     if (IsKeyPressed(KEY_SPACE)) {
-        int dropped = m_activePiece.HardDrop(*m_grid, &app.GetEventBus());
-        if (dropped > 0) {
+        int droppedCells = m_activePiece.HardDrop(*m_grid, &app.GetEventBus());
+        if (droppedCells > 0) {
             app.GetSoundSynth().PlayDrop();
-            m_screenEffects.AddTrauma(0.18f);
+            m_screenEffects.AddTrauma(0.12f);
+            m_runManager.AddScore(droppedCells * 2, "HARD DROP");
 
-            // Dust particles at landing
+            // Particle dust effect at landing site
             const auto coords = m_activePiece.GetMinoGridCoords();
             for (const auto& c : coords) {
-                Vector2 world = m_grid->CoordToWorld(c, { PLAYFIELD_X, PLAYFIELD_Y }, CELL_SIZE);
-                m_particles.EmitHardDropDust({ world.x + CELL_SIZE * 0.5f, world.y + CELL_SIZE }, GetTetrominoColor(m_activePiece.GetType()), 8);
+                Vector2 worldPos = m_grid->CoordToWorld(c, { PLAYFIELD_X, PLAYFIELD_Y }, CELL_SIZE);
+                worldPos.x += CELL_SIZE * 0.5f;
+                worldPos.y += CELL_SIZE;
+                m_particles.EmitHardDropDust(worldPos, GetTetrominoColor(m_activePiece.GetType()), 3);
             }
         }
         HandlePieceLock(app);
-        return;
     }
 
-    // 4. Hold Piece
-    if (IsKeyPressed(KEY_C) || IsKeyPressed(KEY_LEFT_SHIFT)) {
-        std::optional<TetrominoType> swapped;
-        if (m_spawner.TryHold(m_activePiece.GetType(), swapped)) {
-            app.GetSoundSynth().PlayMove();
-            if (swapped.has_value()) {
-                m_activePiece.Spawn(swapped.value(), { 3, 0 }, m_spawner.DetermineSpawnCellType(), m_runManager.GetGlobalElasticity());
-            } else {
-                SpawnNextPiece(app);
+    // 4. Hold System
+    if (IsKeyPressed(KEY_C) || IsKeyPressed(KEY_LEFT_SHIFT) || IsKeyPressed(KEY_RIGHT_SHIFT)) {
+        if (m_spawner.CanHold()) {
+            TetrominoType currentType = m_activePiece.GetType();
+            std::optional<TetrominoType> swapped;
+            if (m_spawner.TryHold(currentType, swapped)) {
+                if (swapped.has_value()) {
+                    GridCoord startPos = (swapped.value() == TetrominoType::O) ? GridCoord{ 4, 0 } : GridCoord{ 3, 0 };
+                    CellType minoType = m_spawner.DetermineSpawnCellType();
+                    m_activePiece.Spawn(swapped.value(), startPos, minoType, m_runManager.GetGlobalElasticity());
+                } else {
+                    SpawnNextPiece(app);
+                }
+                app.GetSoundSynth().PlayCardSelect();
             }
         }
     }
 
-    // 5. Active Abilities [Keys 1 & 2]
-    if (IsKeyPressed(KEY_ONE)) {
+    // 5. Active Ability Hooks (Keys 1 & 2)
+    if (m_gameMode != GameMode::Marathon && m_gameMode != GameMode::Sandbox) {
         CardContext ctx{ &m_runManager, &m_activePiece, m_grid.get(), &m_spawner, &app.GetEventBus() };
-        if (m_runManager.GetInventory().TryUseActiveAbility(0, ctx)) {
-            app.GetSoundSynth().PlayCardSelect();
-            m_screenEffects.AddTrauma(0.2f);
-            m_particles.AddPopup("ABILITY ACTIVATED!", { PLAYFIELD_X + 160.0f, PLAYFIELD_Y + 100.0f }, Colors::TextAccent, 1.2f);
+        if (IsKeyPressed(KEY_ONE)) {
+            m_runManager.GetInventory().TryUseActiveAbility(0, ctx);
         }
-    }
-    if (IsKeyPressed(KEY_TWO)) {
-        CardContext ctx{ &m_runManager, &m_activePiece, m_grid.get(), &m_spawner, &app.GetEventBus() };
-        if (m_runManager.GetInventory().TryUseActiveAbility(1, ctx)) {
-            app.GetSoundSynth().PlayCardSelect();
-            m_screenEffects.AddTrauma(0.2f);
-            m_particles.AddPopup("ABILITY ACTIVATED!", { PLAYFIELD_X + 160.0f, PLAYFIELD_Y + 100.0f }, Colors::TextAccent, 1.2f);
+        if (IsKeyPressed(KEY_TWO)) {
+            m_runManager.GetInventory().TryUseActiveAbility(1, ctx);
         }
-    }
-
-    // 6. Fast Debug Keys
-    if (IsKeyPressed(KEY_F1)) {
-        m_showDebugPhysics = !m_showDebugPhysics;
-    }
-    if (IsKeyPressed(KEY_F2)) {
-        // Force Draft
-        app.GetSoundSynth().PlayLevelUp();
-        app.GetStateManager().PushOverlay(app, std::make_unique<CardDraftState>(m_runManager.GetFloor()));
-    }
-    if (IsKeyPressed(KEY_F3)) {
-        TriggerInstantLineClear(app);
-    }
-    if (IsKeyPressed(KEY_F4)) {
-        m_screenEffects.ToggleScanlines();
-    }
-    if (IsKeyPressed(KEY_F5)) {
-        OnEnter(app);
-    }
-    if (IsKeyPressed(KEY_P) || IsKeyPressed(KEY_ESCAPE)) {
-        m_isPaused = !m_isPaused;
     }
 }
 
-void PlayState::TriggerInstantLineClear(GameApp& app) {
-    // Fill bottom row and trigger clear
-    for (int x = 0; x < m_grid->GetWidth(); ++x) {
-        Cell c;
-        c.type = CellType::Solid;
-        c.color = Colors::PieceI;
-        m_grid->SetCell({ x, m_grid->GetHeight() - 1 }, c);
+void PlayState::HandleSandboxInput(GameApp& app) {
+    TetrominoType types[7] = {
+        TetrominoType::I, TetrominoType::J, TetrominoType::L,
+        TetrominoType::O, TetrominoType::S, TetrominoType::T, TetrominoType::Z
+    };
+
+    for (int k = 0; k < 7; ++k) {
+        if (IsKeyPressed(KEY_ONE + k)) {
+            m_sandboxSelectedPiece = k;
+            GridCoord startPos = (types[k] == TetrominoType::O) ? GridCoord{ 4, 0 } : GridCoord{ 3, 0 };
+            CellType minoType = CellType::Solid;
+            if (m_sandboxSelectedMinoType == 1) minoType = CellType::Sand;
+            else if (m_sandboxSelectedMinoType == 2) minoType = CellType::Bomb;
+            else if (m_sandboxSelectedMinoType == 3) minoType = CellType::Gold;
+            else if (m_sandboxSelectedMinoType == 4) minoType = CellType::Jelly;
+
+            m_activePiece.Spawn(types[k], startPos, minoType, m_sandboxElasticity);
+            app.GetSoundSynth().PlayRotate();
+            return;
+        }
     }
-    LineClearResult res = m_grid->CheckAndClearLines();
-    if (res.linesCount > 0) {
-        app.GetSoundSynth().PlayLineClear(res.linesCount);
-        m_screenEffects.AddTrauma(0.3f);
-        CardContext ctx{ &m_runManager, &m_activePiece, m_grid.get(), &m_spawner, &app.GetEventBus() };
-        m_runManager.RegisterLineClear(res.linesCount, false, ctx);
+
+    // F6 : Cycle Mino Type
+    if (IsKeyPressed(KEY_F6)) {
+        m_sandboxSelectedMinoType = (m_sandboxSelectedMinoType + 1) % 5;
+        app.GetSoundSynth().PlayMenuToggle();
+    }
+
+    // F7 : Toggle Gravity Mode
+    if (IsKeyPressed(KEY_F7)) {
+        m_sandboxZeroGravity = !m_sandboxZeroGravity;
+        app.GetSoundSynth().PlayMenuToggle();
+        m_particles.AddPopup(m_sandboxZeroGravity ? "0G FROZEN" : "GRAVITY ACTIVE", { PLAYFIELD_X + 160.0f, PLAYFIELD_Y + 120.0f }, m_sandboxZeroGravity ? RED : Colors::TextGreen, 1.2f);
+    }
+
+    // F8 / F9 : Decrease / Increase Spring Elasticity
+    if (IsKeyPressed(KEY_F8)) {
+        m_sandboxElasticity = std::max(0.2f, m_sandboxElasticity - 0.2f);
+        m_runManager.SetGlobalElasticity(m_sandboxElasticity);
+        app.GetSoundSynth().PlayMenuToggle();
+    }
+    if (IsKeyPressed(KEY_F9)) {
+        m_sandboxElasticity = std::min(3.0f, m_sandboxElasticity + 0.2f);
+        m_runManager.SetGlobalElasticity(m_sandboxElasticity);
+        app.GetSoundSynth().PlayMenuToggle();
+    }
+
+    // F10 : Clear Grid
+    if (IsKeyPressed(KEY_F10)) {
+        m_grid->Clear();
+        app.GetSoundSynth().PlayMenuBack();
+        m_particles.AddPopup("GRID CLEARED", { PLAYFIELD_X + 160.0f, PLAYFIELD_Y + 120.0f }, RED, 1.3f);
+    }
+
+    // F11 : Add Garbage Row
+    if (IsKeyPressed(KEY_F11)) {
+        m_grid->PushGarbageRow(4, CellType::Solid, DARKGRAY);
+        app.GetSoundSynth().PlayDrop();
     }
 }
 
 void PlayState::HandleInput(GameApp& app) {
-    // ESC or P toggles Pause
     if (IsKeyPressed(KEY_ESCAPE) || IsKeyPressed(KEY_P)) {
         m_isPaused = !m_isPaused;
+        m_pauseSelectedOption = 0;
         if (m_isPaused) {
-            m_pauseSelectedOption = 0;
-            app.GetSoundSynth().PlayMenuToggle();
+            app.GetSoundSynth().PlayMenuHover();
         } else {
-            app.GetSoundSynth().PlayMenuBack();
+            app.GetSoundSynth().PlayCardSelect();
         }
         return;
+    }
+
+    if (IsKeyPressed(KEY_F1)) {
+        m_showDebugPhysics = !m_showDebugPhysics;
     }
 
     if (m_isPaused) {
@@ -482,15 +567,16 @@ void PlayState::HandleInput(GameApp& app) {
             m_pauseSelectedOption = (m_pauseSelectedOption + 1) % numPauseOptions;
             app.GetSoundSynth().PlayMenuHover();
         }
-
         if (IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_SPACE)) {
             switch (m_pauseSelectedOption) {
                 case 0: // Resume
                     m_isPaused = false;
                     app.GetSoundSynth().PlayCardSelect();
                     break;
-                case 1: // Save & Suspend
-                    app.GetSaveManager().SaveRunSlot(m_activeSlot, ExportCurrentRunState());
+                case 1: // Save & Suspend Run
+                    if (m_gameMode == GameMode::Roguelike) {
+                        app.GetSaveManager().SaveRunSlot(m_activeSlot, ExportCurrentRunState());
+                    }
                     app.GetSoundSynth().PlayMenuBack();
                     app.GetStateManager().SetState(app, std::make_unique<TitleState>());
                     return;
@@ -513,24 +599,51 @@ void PlayState::HandleInput(GameApp& app) {
         return;
     }
 
+    if (m_gameMode == GameMode::Sandbox) {
+        HandleSandboxInput(app);
+    }
+
     HandleMovementInput(app, GetFrameTime());
 }
 
 void PlayState::Update(GameApp& app, float dt) {
     if (m_isPaused || app.GetStateManager().HasOverlay()) return;
 
-    m_hazardManager.Update(dt, *m_grid, m_activePiece, m_screenEffects, m_particles, app.GetSoundSynth());
+    if (m_gameMode == GameMode::Roguelike) {
+        m_hazardManager.Update(dt, *m_grid, m_activePiece, m_screenEffects, m_particles, app.GetSoundSynth());
+    }
 
     m_grid->Update(dt);
     m_particles.Update(dt);
     m_screenEffects.Update(dt);
 
+    if (m_gameMode == GameMode::Marathon) {
+        int newLevel = 1 + (m_runManager.GetLinesTotal() / 10);
+        if (newLevel > m_marathonLevel && m_marathonLevel < 20) {
+            m_marathonLevel = newLevel;
+            UpdateMarathonSpeed();
+            app.GetSoundSynth().PlayLevelUp();
+            m_screenEffects.TriggerFlash(GOLD, 0.4f);
+            m_particles.AddPopup("LEVEL " + std::to_string(m_marathonLevel) + "!", { PLAYFIELD_X + 160.0f, PLAYFIELD_Y + 120.0f }, GOLD, 1.6f);
+        }
+    }
+
     // Calculate effective fall interval (accelerated on Soft Drop and Hazard Gravity)
-    float speedMult = m_runManager.GetSpeedMultiplier() * m_hazardManager.GetGravitySpeedMultiplier();
+    float speedMult = m_runManager.GetSpeedMultiplier();
+    if (m_gameMode == GameMode::Roguelike) {
+        speedMult *= m_hazardManager.GetGravitySpeedMultiplier();
+    }
     if (m_runManager.GetInventory().HasCryoBuff()) speedMult *= 0.8f;
-    float fallInterval = m_runManager.GetFallInterval() / std::max(0.1f, speedMult);
+
+    float baseInterval = (m_gameMode == GameMode::Marathon) ? m_marathonFallInterval : m_runManager.GetFallInterval();
+    float fallInterval = baseInterval / std::max(0.1f, speedMult);
+
+    if (m_gameMode == GameMode::Sandbox && m_sandboxZeroGravity) {
+        fallInterval = 999999.0f; // Frozen gravity for sandbox practice
+    }
+
     if (IsKeyDown(KEY_DOWN) || IsKeyDown(KEY_S)) {
-        fallInterval /= SOFT_DROP_FACTOR;
+        fallInterval = (m_gameMode == GameMode::Sandbox && m_sandboxZeroGravity) ? 0.05f : (fallInterval / SOFT_DROP_FACTOR);
     }
 
     m_activePiece.Update(dt, fallInterval, *m_grid, &app.GetEventBus());
@@ -583,11 +696,9 @@ void PlayState::RenderPauseMenu(GameApp& app) {
     DrawRectangleRounded(statsRect, 0.15f, 4, Colors::BgPanel);
     DrawRectangleLinesEx(statsRect, 1.0f, Colors::BgPanelBorder);
 
-    std::string statsStr = "SLOT #" + std::to_string(m_activeSlot) +
-                           "  |  FL: " + std::to_string(m_runManager.GetFloor()) +
-                           "  |  SCORE: " + std::to_string(m_runManager.GetScore()) +
-                           "  |  LINES: " + std::to_string(m_runManager.GetLinesTotal()) +
-                           "  |  $" + std::to_string(m_runManager.GetInventory().GetCoins());
+    std::string statsStr = (m_gameMode == GameMode::Marathon) ?
+                           ("MARATHON LVL: " + std::to_string(m_marathonLevel) + "  |  SCORE: " + std::to_string(m_runManager.GetScore()) + "  |  LINES: " + std::to_string(m_runManager.GetLinesTotal())) :
+                           ("SLOT #" + std::to_string(m_activeSlot) + "  |  FL: " + std::to_string(m_runManager.GetFloor()) + "  |  SCORE: " + std::to_string(m_runManager.GetScore()) + "  |  $" + std::to_string(m_runManager.GetInventory().GetCoins()));
     DrawText(statsStr.c_str(), static_cast<int>(statsRect.x + 14.0f), static_cast<int>(statsRect.y + 12.0f), 12, Colors::TextAccent);
 
     // 5 Pause Menu Buttons
@@ -627,7 +738,9 @@ void PlayState::RenderPauseMenu(GameApp& app) {
                     app.GetSoundSynth().PlayCardSelect();
                     break;
                 case 1:
-                    app.GetSaveManager().SaveRunSlot(m_activeSlot, ExportCurrentRunState());
+                    if (m_gameMode == GameMode::Roguelike) {
+                        app.GetSaveManager().SaveRunSlot(m_activeSlot, ExportCurrentRunState());
+                    }
                     app.GetSoundSynth().PlayMenuBack();
                     app.GetStateManager().SetState(app, std::make_unique<TitleState>());
                     return;
@@ -668,7 +781,15 @@ void PlayState::Render(GameApp& app) {
         m_particles,
         m_screenEffects,
         m_showDebugPhysics,
-        &m_hazardManager
+        &m_hazardManager,
+        m_gameMode,
+        m_marathonLevel,
+        m_marathonFallInterval,
+        m_sandboxZeroGravity,
+        m_sandboxElasticity,
+        m_sandboxSelectedPiece,
+        m_sandboxSelectedMinoType,
+        SaveManager::GetDailyDateString()
     );
 
     // HUD Now Playing Banner

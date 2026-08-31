@@ -125,20 +125,39 @@ void TitleState::HandleInputMainHub(GameApp& app) {
 void TitleState::HandleInputPlaySelect(GameApp& app) {
     if (IsKeyPressed(KEY_ESCAPE)) { GoBack(app); return; }
 
-    const int numOptions = 2;
-    if (IsKeyPressed(KEY_LEFT) || IsKeyPressed(KEY_A) || IsKeyPressed(KEY_UP) || IsKeyPressed(KEY_W)) {
-        m_selectedOption = (m_selectedOption - 1 + numOptions) % numOptions;
+    if (IsKeyPressed(KEY_LEFT) || IsKeyPressed(KEY_A)) {
+        if (m_selectedOption % 2 == 1) m_selectedOption -= 1;
         app.GetSoundSynth().PlayMenuHover();
     }
-    if (IsKeyPressed(KEY_RIGHT) || IsKeyPressed(KEY_D) || IsKeyPressed(KEY_DOWN) || IsKeyPressed(KEY_S)) {
-        m_selectedOption = (m_selectedOption + 1) % numOptions;
+    if (IsKeyPressed(KEY_RIGHT) || IsKeyPressed(KEY_D)) {
+        if (m_selectedOption % 2 == 0) m_selectedOption += 1;
+        app.GetSoundSynth().PlayMenuHover();
+    }
+    if (IsKeyPressed(KEY_UP) || IsKeyPressed(KEY_W)) {
+        if (m_selectedOption >= 2) m_selectedOption -= 2;
+        app.GetSoundSynth().PlayMenuHover();
+    }
+    if (IsKeyPressed(KEY_DOWN) || IsKeyPressed(KEY_S)) {
+        if (m_selectedOption < 2) m_selectedOption += 2;
         app.GetSoundSynth().PlayMenuHover();
     }
 
     if (IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_SPACE)) {
         app.GetSoundSynth().PlayCardSelect();
-        // Start run on Slot 1
-        app.GetStateManager().SetState(app, std::make_unique<PlayState>(1, std::nullopt));
+        switch (m_selectedOption) {
+            case 0: // Roguelike
+                app.GetStateManager().SetState(app, std::make_unique<PlayState>(GameMode::Roguelike, 1, std::nullopt));
+                break;
+            case 1: // Marathon
+                app.GetStateManager().SetState(app, std::make_unique<PlayState>(GameMode::Marathon, 1, std::nullopt));
+                break;
+            case 2: // Daily Protocol
+                app.GetStateManager().SetState(app, std::make_unique<PlayState>(GameMode::DailyProtocol, 1, std::nullopt, SaveManager::ComputeDailySeed()));
+                break;
+            case 3: // Sandbox
+                app.GetStateManager().SetState(app, std::make_unique<PlayState>(GameMode::Sandbox, 1, std::nullopt));
+                break;
+        }
     }
 }
 
@@ -169,9 +188,9 @@ void TitleState::HandleInputProfileSaves(GameApp& app) {
         int slotId = m_selectedOption + 1;
         SavedRunState saved;
         if (app.GetSaveManager().LoadRunSlot(slotId, saved)) {
-            app.GetStateManager().SetState(app, std::make_unique<PlayState>(slotId, saved));
+            app.GetStateManager().SetState(app, std::make_unique<PlayState>(saved.gameMode, slotId, saved));
         } else {
-            app.GetStateManager().SetState(app, std::make_unique<PlayState>(slotId, std::nullopt));
+            app.GetStateManager().SetState(app, std::make_unique<PlayState>(GameMode::Roguelike, slotId, std::nullopt));
         }
     }
 }
@@ -555,67 +574,130 @@ void TitleState::RenderPlaySelect(GameApp& app) {
     Vector2 mousePos = GetMousePosition();
     m_menuRenderer.DrawHeaderBanner("MISSION SELECTION", "LAUNCH", "PLAY");
 
-    Rectangle card1 = { 100.0f, 130.0f, 500.0f, 500.0f };
-    Rectangle card2 = { 680.0f, 130.0f, 500.0f, 500.0f };
+    Rectangle cards[4] = {
+        { 60.0f, 105.0f, 560.0f, 275.0f },
+        { 660.0f, 105.0f, 560.0f, 275.0f },
+        { 60.0f, 395.0f, 560.0f, 275.0f },
+        { 660.0f, 395.0f, 560.0f, 275.0f }
+    };
 
-    bool hover1 = CheckCollisionPointRec(mousePos, card1);
-    bool hover2 = CheckCollisionPointRec(mousePos, card2);
-
-    if (hover1 && m_selectedOption != 0) { m_selectedOption = 0; app.GetSoundSynth().PlayMenuHover(); }
-    if (hover2 && m_selectedOption != 1) { m_selectedOption = 1; app.GetSoundSynth().PlayMenuHover(); }
-
-    if (hover1 && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
-        app.GetSoundSynth().PlayCardSelect();
-        app.GetStateManager().SetState(app, std::make_unique<PlayState>());
-        return;
+    bool hovers[4];
+    for (int i = 0; i < 4; ++i) {
+        hovers[i] = CheckCollisionPointRec(mousePos, cards[i]);
+        if (hovers[i] && m_selectedOption != i) {
+            m_selectedOption = i;
+            app.GetSoundSynth().PlayMenuHover();
+        }
+        if (hovers[i] && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+            app.GetSoundSynth().PlayCardSelect();
+            switch (i) {
+                case 0:
+                    app.GetStateManager().SetState(app, std::make_unique<PlayState>(GameMode::Roguelike, 1, std::nullopt));
+                    break;
+                case 1:
+                    app.GetStateManager().SetState(app, std::make_unique<PlayState>(GameMode::Marathon, 1, std::nullopt));
+                    break;
+                case 2:
+                    app.GetStateManager().SetState(app, std::make_unique<PlayState>(GameMode::DailyProtocol, 1, std::nullopt, SaveManager::ComputeDailySeed()));
+                    break;
+                case 3:
+                    app.GetStateManager().SetState(app, std::make_unique<PlayState>(GameMode::Sandbox, 1, std::nullopt));
+                    break;
+            }
+            return;
+        }
     }
-    if (hover2 && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
-        app.GetSoundSynth().PlayCardSelect();
-        app.GetStateManager().SetState(app, std::make_unique<PlayState>());
-        return;
+
+    // 1. Sector Campaign (Roguelike)
+    {
+        Rectangle c = cards[0];
+        bool sel = (m_selectedOption == 0);
+        DrawRectangleRounded(c, 0.04f, 6, sel ? Fade(Colors::PieceI, 0.15f) : Colors::BgPanel);
+        DrawRectangleLinesEx(c, sel ? 2.5f : 1.2f, sel ? Colors::PieceI : (hovers[0] ? WHITE : Colors::BgPanelBorder));
+
+        DrawText("SECTOR CAMPAIGN", static_cast<int>(c.x + 20.0f), static_cast<int>(c.y + 16.0f), 18, Colors::TextWhite);
+        DrawText("ROGUELIKE PROGRESSION & DRAFTS", static_cast<int>(c.x + 20.0f), static_cast<int>(c.y + 40.0f), 11, Colors::TextAccent);
+        DrawLine(static_cast<int>(c.x + 20.0f), static_cast<int>(c.y + 56.0f), static_cast<int>(c.x + c.width - 20.0f), static_cast<int>(c.y + 56.0f), Colors::BgPanelBorder);
+
+        DrawText("* Floor targets & 30 Relic Cards catalog", static_cast<int>(c.x + 20.0f), static_cast<int>(c.y + 70.0f), 11, Colors::TextWhite);
+        DrawText("* In-run shop, deflector shields & active spells", static_cast<int>(c.x + 20.0f), static_cast<int>(c.y + 90.0f), 11, Colors::TextWhite);
+        DrawText("* Boss Hazards: Gravity Flux, Glitch Matrix", static_cast<int>(c.x + 20.0f), static_cast<int>(c.y + 110.0f), 11, Colors::TextWhite);
+
+        Vector2 previewCenter = { c.x + c.width - 70.0f, c.y + 105.0f };
+        m_menuRenderer.DrawMinoSkinPreview(TetrominoType::Z, previewCenter, 18.0f, m_animTimer, Colors::PieceZ, Colors::PieceI);
+
+        Rectangle btn = { c.x + 20.0f, c.y + c.height - 48.0f, c.width - 40.0f, 36.0f };
+        m_menuRenderer.DrawNeonButton(btn, "LAUNCH ROGUELIKE RUN", "[ENTER]", sel, hovers[0], Colors::TextGreen);
     }
 
-    // Card 1: Roguelike Standard
-    Color b1 = (m_selectedOption == 0) ? Colors::PieceI : (hover1 ? WHITE : Colors::BgPanelBorder);
-    DrawRectangleRounded(card1, 0.04f, 6, (m_selectedOption == 0) ? Fade(Colors::PieceI, 0.15f) : Colors::BgPanel);
-    DrawRectangleLinesEx(card1, (m_selectedOption == 0) ? 2.5f : 1.2f, b1);
+    // 2. Matrix Marathon (Classic Arcade)
+    {
+        Rectangle c = cards[1];
+        bool sel = (m_selectedOption == 1);
+        DrawRectangleRounded(c, 0.04f, 6, sel ? Fade(Colors::PieceS, 0.15f) : Colors::BgPanel);
+        DrawRectangleLinesEx(c, sel ? 2.5f : 1.2f, sel ? Colors::PieceS : (hovers[1] ? WHITE : Colors::BgPanelBorder));
 
-    DrawText("SECTOR CAMPAIGN", static_cast<int>(card1.x + 28.0f), static_cast<int>(card1.y + 28.0f), 22, Colors::TextWhite);
-    DrawText("ROGUELIKE RUN // PROGRESSION", static_cast<int>(card1.x + 28.0f), static_cast<int>(card1.y + 56.0f), 12, Colors::TextAccent);
-    DrawLine(static_cast<int>(card1.x + 28.0f), static_cast<int>(card1.y + 78.0f), static_cast<int>(card1.x + card1.width - 28.0f), static_cast<int>(card1.y + 78.0f), Colors::BgPanelBorder);
+        DrawText("MATRIX MARATHON", static_cast<int>(c.x + 20.0f), static_cast<int>(c.y + 16.0f), 18, Colors::TextWhite);
+        DrawText("PURE CLASSIC ARCADE // LEVEL 1..15", static_cast<int>(c.x + 20.0f), static_cast<int>(c.y + 40.0f), 11, Colors::PieceS);
+        DrawLine(static_cast<int>(c.x + 20.0f), static_cast<int>(c.y + 56.0f), static_cast<int>(c.x + c.width - 20.0f), static_cast<int>(c.y + 56.0f), Colors::BgPanelBorder);
 
-    DrawText("* Progress through progressive floors & clear targets", static_cast<int>(card1.x + 28.0f), static_cast<int>(card1.y + 100.0f), 13, Colors::TextWhite);
-    DrawText("* Draft powerful Relic Cards after each floor goal", static_cast<int>(card1.x + 28.0f), static_cast<int>(card1.y + 130.0f), 13, Colors::TextWhite);
-    DrawText("* Active abilities, physics mutators and score combos", static_cast<int>(card1.x + 28.0f), static_cast<int>(card1.y + 160.0f), 13, Colors::TextWhite);
-    DrawText("* High replayability with random 7-bag seeded drops", static_cast<int>(card1.x + 28.0f), static_cast<int>(card1.y + 190.0f), 13, Colors::TextWhite);
+        DrawText("* Pure standard SRS mechanics without relics", static_cast<int>(c.x + 20.0f), static_cast<int>(c.y + 70.0f), 11, Colors::TextWhite);
+        DrawText("* 10 lines per level speed scaling curve", static_cast<int>(c.x + 20.0f), static_cast<int>(c.y + 90.0f), 11, Colors::TextWhite);
+        DrawText("* Dedicated Marathon local hall of fame", static_cast<int>(c.x + 20.0f), static_cast<int>(c.y + 110.0f), 11, Colors::TextWhite);
 
-    Vector2 c1Center = { card1.x + card1.width * 0.5f, card1.y + 320.0f };
-    m_menuRenderer.DrawMinoSkinPreview(TetrominoType::Z, c1Center, 32.0f, m_animTimer, Colors::PieceZ, Colors::PieceI);
+        Vector2 previewCenter = { c.x + c.width - 70.0f, c.y + 105.0f };
+        m_menuRenderer.DrawMinoSkinPreview(TetrominoType::I, previewCenter, 18.0f, m_animTimer, Colors::PieceI, Colors::PieceS);
 
-    Rectangle btnLaunch1 = { card1.x + 28.0f, card1.y + card1.height - 65.0f, card1.width - 56.0f, 44.0f };
-    m_menuRenderer.DrawNeonButton(btnLaunch1, "LAUNCH ROGUELIKE RUN", "[ENTER]", (m_selectedOption == 0), hover1, Colors::TextGreen);
+        Rectangle btn = { c.x + 20.0f, c.y + c.height - 48.0f, c.width - 40.0f, 36.0f };
+        m_menuRenderer.DrawNeonButton(btn, "LAUNCH MARATHON", "[ENTER]", sel, hovers[1], Colors::PieceS);
+    }
 
-    // Card 2: Endless Sandbox
-    Color b2 = (m_selectedOption == 1) ? Colors::PieceT : (hover2 ? WHITE : Colors::BgPanelBorder);
-    DrawRectangleRounded(card2, 0.04f, 6, (m_selectedOption == 1) ? Fade(Colors::PieceT, 0.15f) : Colors::BgPanel);
-    DrawRectangleLinesEx(card2, (m_selectedOption == 1) ? 2.5f : 1.2f, b2);
+    // 3. Daily Protocol (Seeded Global Run)
+    {
+        Rectangle c = cards[2];
+        bool sel = (m_selectedOption == 2);
+        DrawRectangleRounded(c, 0.04f, 6, sel ? Fade(Colors::TextGold, 0.15f) : Colors::BgPanel);
+        DrawRectangleLinesEx(c, sel ? 2.5f : 1.2f, sel ? Colors::TextGold : (hovers[2] ? WHITE : Colors::BgPanelBorder));
 
-    DrawText("ENDLESS MATRIX", static_cast<int>(card2.x + 28.0f), static_cast<int>(card2.y + 28.0f), 22, Colors::TextWhite);
-    DrawText("CLASSIC ARCADE // HIGH SCORE CHASE", static_cast<int>(card2.x + 28.0f), static_cast<int>(card2.y + 56.0f), 12, Colors::PieceT);
-    DrawLine(static_cast<int>(card2.x + 28.0f), static_cast<int>(card2.y + 78.0f), static_cast<int>(card2.x + card2.width - 28.0f), static_cast<int>(card2.y + 78.0f), Colors::BgPanelBorder);
+        DrawText("DAILY PROTOCOL", static_cast<int>(c.x + 20.0f), static_cast<int>(c.y + 16.0f), 18, Colors::TextWhite);
+        std::string dateSub = "SYNCHRONIZED SEED // " + SaveManager::GetDailyDateString();
+        DrawText(dateSub.c_str(), static_cast<int>(c.x + 20.0f), static_cast<int>(c.y + 40.0f), 11, Colors::TextGold);
+        DrawLine(static_cast<int>(c.x + 20.0f), static_cast<int>(c.y + 56.0f), static_cast<int>(c.x + c.width - 20.0f), static_cast<int>(c.y + 56.0f), Colors::BgPanelBorder);
 
-    DrawText("* Infinite speed-scaling marathon with SRS rotation", static_cast<int>(card2.x + 28.0f), static_cast<int>(card2.y + 100.0f), 13, Colors::TextWhite);
-    DrawText("* Soft-body collision squish and wall-kick physics", static_cast<int>(card2.x + 28.0f), static_cast<int>(card2.y + 130.0f), 13, Colors::TextWhite);
-    DrawText("* Pure arcade skill: DAS, ARR, Hold and Hard Drop", static_cast<int>(card2.x + 28.0f), static_cast<int>(card2.y + 160.0f), 13, Colors::TextWhite);
-    DrawText("* Climb local and global hall of fame leaderboards", static_cast<int>(card2.x + 28.0f), static_cast<int>(card2.y + 190.0f), 13, Colors::TextWhite);
+        DrawText("* Identical 7-bag piece sequence for all pilots", static_cast<int>(c.x + 20.0f), static_cast<int>(c.y + 70.0f), 11, Colors::TextWhite);
+        DrawText("* Deterministic card draft pool based on daily date", static_cast<int>(c.x + 20.0f), static_cast<int>(c.y + 90.0f), 11, Colors::TextWhite);
+        DrawText("* One global challenge per day to set your high score", static_cast<int>(c.x + 20.0f), static_cast<int>(c.y + 110.0f), 11, Colors::TextWhite);
 
-    Vector2 c2Center = { card2.x + card2.width * 0.5f, card2.y + 320.0f };
-    m_menuRenderer.DrawMinoSkinPreview(TetrominoType::I, c2Center, 32.0f, m_animTimer, Colors::PieceI, Colors::PieceT);
+        Vector2 previewCenter = { c.x + c.width - 70.0f, c.y + 105.0f };
+        m_menuRenderer.DrawMinoSkinPreview(TetrominoType::O, previewCenter, 18.0f, m_animTimer, Colors::PieceGold, Colors::PieceO);
 
-    Rectangle btnLaunch2 = { card2.x + 28.0f, card2.y + card2.height - 65.0f, card2.width - 56.0f, 44.0f };
-    m_menuRenderer.DrawNeonButton(btnLaunch2, "LAUNCH ENDLESS MATRIX", "[ENTER]", (m_selectedOption == 1), hover2, Colors::PieceT);
+        Rectangle btn = { c.x + 20.0f, c.y + c.height - 48.0f, c.width - 40.0f, 36.0f };
+        m_menuRenderer.DrawNeonButton(btn, "LAUNCH DAILY PROTOCOL", "[ENTER]", sel, hovers[2], Colors::TextGold);
+    }
 
-    m_menuRenderer.DrawFooterHints({ "[ESC] Return to Main Menu", "[LEFT / RIGHT] Select Mode", "[ENTER / CLICK] Launch Session" });
+    // 4. Custom Sandbox (Training & Physics Testing Lab)
+    {
+        Rectangle c = cards[3];
+        bool sel = (m_selectedOption == 3);
+        DrawRectangleRounded(c, 0.04f, 6, sel ? Fade(Colors::PieceSand, 0.15f) : Colors::BgPanel);
+        DrawRectangleLinesEx(c, sel ? 2.5f : 1.2f, sel ? Colors::PieceSand : (hovers[3] ? WHITE : Colors::BgPanelBorder));
+
+        DrawText("CUSTOM SANDBOX", static_cast<int>(c.x + 20.0f), static_cast<int>(c.y + 16.0f), 18, Colors::TextWhite);
+        DrawText("PHYSICS & RELIC EXPERIMENTATION LAB", static_cast<int>(c.x + 20.0f), static_cast<int>(c.y + 40.0f), 11, Colors::PieceSand);
+        DrawLine(static_cast<int>(c.x + 20.0f), static_cast<int>(c.y + 56.0f), static_cast<int>(c.x + c.width - 20.0f), static_cast<int>(c.y + 56.0f), Colors::BgPanelBorder);
+
+        DrawText("* Spawn any tetromino (1..7) & mino (Sand/Bomb/Jelly)", static_cast<int>(c.x + 20.0f), static_cast<int>(c.y + 70.0f), 11, Colors::TextWhite);
+        DrawText("* Realtime spring elasticity & 0G gravity frozen practice", static_cast<int>(c.x + 20.0f), static_cast<int>(c.y + 90.0f), 11, Colors::TextWhite);
+        DrawText("* Clear matrix (F10), inject garbage lines & test T-Spins", static_cast<int>(c.x + 20.0f), static_cast<int>(c.y + 110.0f), 11, Colors::TextWhite);
+
+        Vector2 previewCenter = { c.x + c.width - 70.0f, c.y + 105.0f };
+        m_menuRenderer.DrawMinoSkinPreview(TetrominoType::T, previewCenter, 18.0f, m_animTimer, Colors::PieceSand, Colors::PieceT);
+
+        Rectangle btn = { c.x + 20.0f, c.y + c.height - 48.0f, c.width - 40.0f, 36.0f };
+        m_menuRenderer.DrawNeonButton(btn, "LAUNCH SANDBOX LAB", "[ENTER]", sel, hovers[3], Colors::PieceSand);
+    }
+
+    m_menuRenderer.DrawFooterHints({ "[ESC] Return to Main Menu", "[ARROWS / WASD] Select Mode", "[ENTER / CLICK] Launch Session" });
 }
 
 void TitleState::RenderProfileSaves(GameApp& app) {
@@ -674,9 +756,9 @@ void TitleState::RenderProfileSaves(GameApp& app) {
             int slotId = static_cast<int>(i) + 1;
             SavedRunState saved;
             if (app.GetSaveManager().LoadRunSlot(slotId, saved)) {
-                app.GetStateManager().SetState(app, std::make_unique<PlayState>(slotId, saved));
+                app.GetStateManager().SetState(app, std::make_unique<PlayState>(saved.gameMode, slotId, saved));
             } else {
-                app.GetStateManager().SetState(app, std::make_unique<PlayState>(slotId, std::nullopt));
+                app.GetStateManager().SetState(app, std::make_unique<PlayState>(GameMode::Roguelike, slotId, std::nullopt));
             }
             return;
         }

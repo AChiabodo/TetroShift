@@ -17,7 +17,12 @@ namespace TetroShift {
 
 class PlayState : public IGameState {
 public:
-    explicit PlayState(int activeSlot = 1, std::optional<SavedRunState> restoredRun = std::nullopt);
+    explicit PlayState(
+        GameMode mode = GameMode::Roguelike,
+        int activeSlot = 1,
+        std::optional<SavedRunState> restoredRun = std::nullopt,
+        uint32_t customSeed = 0
+    );
     ~PlayState() override = default;
 
     void OnEnter(GameApp& app) override;
@@ -37,16 +42,32 @@ public:
     [[nodiscard]] ParticleSystem& GetParticles() noexcept { return m_particles; }
     [[nodiscard]] ScreenEffects& GetScreenEffects() noexcept { return m_screenEffects; }
     [[nodiscard]] int GetActiveSlot() const noexcept { return m_activeSlot; }
+    [[nodiscard]] GameMode GetGameMode() const noexcept { return m_gameMode; }
+    [[nodiscard]] int GetMarathonLevel() const noexcept { return m_marathonLevel; }
 
     [[nodiscard]] SavedRunState ExportCurrentRunState() const;
 
 private:
     void HandleMovementInput(GameApp& app, float dt);
+    void HandleSandboxInput(GameApp& app);
     void TriggerInstantLineClear(GameApp& app);
     void RenderPauseMenu(GameApp& app);
+    void UpdateMarathonSpeed();
 
+    GameMode m_gameMode = GameMode::Roguelike;
     int m_activeSlot = 1;
     std::optional<SavedRunState> m_restoredRun;
+    uint32_t m_customSeed = 0;
+
+    // Marathon state
+    int m_marathonLevel = 1;
+    float m_marathonFallInterval = 1.0f;
+
+    // Sandbox state
+    bool m_sandboxZeroGravity = false;
+    int m_sandboxSelectedPiece = 0; // 0..6: I,J,L,O,S,T,Z
+    int m_sandboxSelectedMinoType = 0; // 0: Normal, 1: Sand, 2: Bomb, 3: Gold, 4: Jelly
+    float m_sandboxElasticity = 1.0f;
 
     std::unique_ptr<IGrid> m_grid;
     ActivePiece m_activePiece;
