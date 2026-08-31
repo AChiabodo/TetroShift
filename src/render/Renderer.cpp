@@ -210,58 +210,72 @@ void Renderer::DrawMarathonPanel(int level, float fallInterval, int linesTotal, 
     DrawText("* Dedicated Leaderboards", tx, ty, 10, Colors::TextDim);
 }
 
-void Renderer::DrawSandboxToolbox(bool zeroGravity, float elasticity, int selectedPiece, int selectedMino, Rectangle bounds) const {
+void Renderer::DrawSandboxToolbox(bool zeroGravity, float elasticity, int selectedPiece, int selectedMino, GridGeometry geometry, Rectangle bounds) const {
     DrawPanelFrame(bounds, "SANDBOX TOOLBOX");
 
     int tx = static_cast<int>(bounds.x + 14.0f);
-    int ty = static_cast<int>(bounds.y + 22.0f);
+    int ty = static_cast<int>(bounds.y + 20.0f);
 
-    DrawText("PIECE SPAWNER [1..7]:", tx, ty, 11, Colors::TextAccent); ty += 16;
+    // Matrix Geometry Selector
+    DrawText("MATRIX GEOMETRY [F8]:", tx, ty, 11, Colors::TextAccent); ty += 15;
+    const char* geomNames[3] = { "ORTHOGONAL", "HEXAGONAL", "RADIAL 360°" };
+    Color geomCols[3] = { Colors::PieceI, Colors::PieceT, Colors::PieceGold };
+    int gIdx = (geometry == GridGeometry::Hexagonal) ? 1 : (geometry == GridGeometry::Radial ? 2 : 0);
+
+    Rectangle geoBtn = { static_cast<float>(tx), static_cast<float>(ty), bounds.width - 28.0f, 22.0f };
+    DrawRectangleRounded(geoBtn, 0.2f, 4, Fade(geomCols[gIdx], 0.25f));
+    DrawRectangleLinesEx(geoBtn, 1.2f, geomCols[gIdx]);
+    std::string geoStr = "< " + std::string(geomNames[gIdx]) + " >";
+    int gtw = MeasureText(geoStr.c_str(), 11);
+    DrawText(geoStr.c_str(), static_cast<int>(geoBtn.x + (geoBtn.width - gtw) * 0.5f), static_cast<int>(geoBtn.y + 5.0f), 11, geomCols[gIdx]);
+    ty += 28;
+
+    // Piece Spawner
+    DrawText("PIECE SPAWNER [1..7]:", tx, ty, 11, Colors::TextAccent); ty += 15;
     const char* pieces[7] = { "I", "J", "L", "O", "S", "T", "Z" };
     Color pCols[7] = { Colors::PieceI, Colors::PieceJ, Colors::PieceL, Colors::PieceO, Colors::PieceS, Colors::PieceT, Colors::PieceZ };
     
     for (int i = 0; i < 7; ++i) {
-        Rectangle pBtn = { static_cast<float>(tx + i * 26), static_cast<float>(ty), 22.0f, 22.0f };
+        Rectangle pBtn = { static_cast<float>(tx + i * 26), static_cast<float>(ty), 22.0f, 20.0f };
         bool isSel = (selectedPiece == i);
         DrawRectangleRounded(pBtn, 0.2f, 4, isSel ? Fade(pCols[i], 0.4f) : Colors::BgDark);
         DrawRectangleLinesEx(pBtn, isSel ? 1.5f : 1.0f, pCols[i]);
-        DrawText(pieces[i], static_cast<int>(pBtn.x + 7.0f), static_cast<int>(pBtn.y + 4.0f), 12, pCols[i]);
+        DrawText(pieces[i], static_cast<int>(pBtn.x + 7.0f), static_cast<int>(pBtn.y + 4.0f), 11, pCols[i]);
     }
-    ty += 32;
+    ty += 28;
 
     // Mino Type Selector
-    DrawText("MINO TYPE [F6]:", tx, ty, 11, Colors::TextAccent); ty += 16;
+    DrawText("MINO TYPE [F6]:", tx, ty, 11, Colors::TextAccent); ty += 15;
     const char* minoNames[5] = { "NORMAL", "SAND", "BOMB", "GOLD", "JELLY" };
     Color minoCols[5] = { Colors::TextWhite, Colors::PieceSand, Colors::PieceBomb, Colors::PieceGold, Colors::PieceJelly };
     
-    Rectangle mBtn = { static_cast<float>(tx), static_cast<float>(ty), bounds.width - 28.0f, 24.0f };
+    Rectangle mBtn = { static_cast<float>(tx), static_cast<float>(ty), bounds.width - 28.0f, 22.0f };
     DrawRectangleRounded(mBtn, 0.2f, 4, Fade(minoCols[selectedMino % 5], 0.2f));
     DrawRectangleLinesEx(mBtn, 1.2f, minoCols[selectedMino % 5]);
     std::string mStr = "< " + std::string(minoNames[selectedMino % 5]) + " MINO >";
     int mtw = MeasureText(mStr.c_str(), 11);
-    DrawText(mStr.c_str(), static_cast<int>(mBtn.x + (mBtn.width - mtw) * 0.5f), static_cast<int>(mBtn.y + 6.0f), 11, minoCols[selectedMino % 5]);
-    ty += 34;
+    DrawText(mStr.c_str(), static_cast<int>(mBtn.x + (mBtn.width - mtw) * 0.5f), static_cast<int>(mBtn.y + 5.0f), 11, minoCols[selectedMino % 5]);
+    ty += 28;
 
     // Gravity Mode Toggle
-    DrawText("GRAVITY MODE [F7]:", tx, ty, 11, Colors::TextAccent); ty += 16;
-    Rectangle gBtn = { static_cast<float>(tx), static_cast<float>(ty), bounds.width - 28.0f, 24.0f };
+    DrawText("GRAVITY MODE [F7]:", tx, ty, 11, Colors::TextAccent); ty += 15;
+    Rectangle gBtn = { static_cast<float>(tx), static_cast<float>(ty), bounds.width - 28.0f, 22.0f };
     DrawRectangleRounded(gBtn, 0.2f, 4, zeroGravity ? Fade(RED, 0.25f) : Fade(Colors::TextGreen, 0.25f));
     DrawRectangleLinesEx(gBtn, 1.2f, zeroGravity ? RED : Colors::TextGreen);
     const char* gStr = zeroGravity ? "FROZEN (0G TRAINING)" : "NORMAL GRAVITY";
-    int gtw = MeasureText(gStr, 11);
-    DrawText(gStr, static_cast<int>(gBtn.x + (gBtn.width - gtw) * 0.5f), static_cast<int>(gBtn.y + 6.0f), 11, zeroGravity ? RED : Colors::TextGreen);
-    ty += 34;
+    int gtw2 = MeasureText(gStr, 11);
+    DrawText(gStr, static_cast<int>(gBtn.x + (gBtn.width - gtw2) * 0.5f), static_cast<int>(gBtn.y + 5.0f), 11, zeroGravity ? RED : Colors::TextGreen);
+    ty += 28;
 
     // Spring Elasticity
-    DrawText("SOFT-BODY SPRING [F8/F9]:", tx, ty, 11, Colors::TextAccent); ty += 16;
-    char elBuf[32];
-    snprintf(elBuf, sizeof(elBuf), "ELASTICITY: %.1fx", elasticity);
-    DrawText(elBuf, tx, ty, 12, Colors::TextWhite); ty += 22;
+    char elBuf[48];
+    snprintf(elBuf, sizeof(elBuf), "SPRING SQUISH [F9]: %.1fx", elasticity);
+    DrawText(elBuf, tx, ty, 11, Colors::TextWhite); ty += 18;
 
     DrawLine(static_cast<int>(bounds.x + 10.0f), ty, static_cast<int>(bounds.x + bounds.width - 10.0f), ty, Colors::BgPanelBorder);
-    ty += 14;
+    ty += 12;
 
-    DrawText("[F10] : Wipe / Clear Grid", tx, ty, 11, RED); ty += 16;
+    DrawText("[F10] : Wipe / Clear Grid", tx, ty, 11, RED); ty += 15;
     DrawText("[F11] : Drop Solid Garbage Row", tx, ty, 11, Colors::PieceBomb);
 }
 
@@ -426,7 +440,8 @@ void Renderer::RenderGameHUD(
     float sandboxElasticity,
     int sandboxPiece,
     int sandboxMino,
-    const std::string& dailyDate
+    const std::string& dailyDate,
+    GridGeometry geometry
 ) const {
     // 1. Draw Title Header by Mode
     if (gameMode == GameMode::Marathon) {
@@ -452,7 +467,7 @@ void Renderer::RenderGameHUD(
     if (gameMode == GameMode::Marathon) {
         DrawMarathonPanel(marathonLevel, marathonFallInterval, runManager.GetLinesTotal(), { leftX, 200.0f, 220.0f, 340.0f });
     } else if (gameMode == GameMode::Sandbox) {
-        DrawSandboxToolbox(sandboxZeroGravity, sandboxElasticity, sandboxPiece, sandboxMino, { leftX, 200.0f, 220.0f, 340.0f });
+        DrawSandboxToolbox(sandboxZeroGravity, sandboxElasticity, sandboxPiece, sandboxMino, geometry, { leftX, 200.0f, 220.0f, 340.0f });
     } else {
         DrawRelicsPanel(runManager, { leftX, 200.0f, 220.0f, 340.0f });
     }

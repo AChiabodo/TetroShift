@@ -1,6 +1,9 @@
 #pragma once
 #include "IGameState.hpp"
 #include "grid/OrthogonalGrid.hpp"
+#include "grid/HexagonalGrid.hpp"
+#include "grid/RadialGrid.hpp"
+#include "grid/GeometryTypes.hpp"
 #include "piece/ActivePiece.hpp"
 #include "piece/PieceSpawner.hpp"
 #include "roguelike/RunManager.hpp"
@@ -21,7 +24,8 @@ public:
         GameMode mode = GameMode::Roguelike,
         int activeSlot = 1,
         std::optional<SavedRunState> restoredRun = std::nullopt,
-        uint32_t customSeed = 0
+        uint32_t customSeed = 0,
+        GridGeometry geometry = GridGeometry::Orthogonal
     );
     ~PlayState() override = default;
 
@@ -33,6 +37,7 @@ public:
 
     void SpawnNextPiece(GameApp& app);
     void HandlePieceLock(GameApp& app);
+    void SetGridGeometry(GridGeometry geom, GameApp& app);
 
     [[nodiscard]] IGrid& GetGrid() noexcept { return *m_grid; }
     [[nodiscard]] ActivePiece& GetActivePiece() noexcept { return m_activePiece; }
@@ -43,6 +48,7 @@ public:
     [[nodiscard]] ScreenEffects& GetScreenEffects() noexcept { return m_screenEffects; }
     [[nodiscard]] int GetActiveSlot() const noexcept { return m_activeSlot; }
     [[nodiscard]] GameMode GetGameMode() const noexcept { return m_gameMode; }
+    [[nodiscard]] GridGeometry GetGridGeometry() const noexcept { return m_geometry; }
     [[nodiscard]] int GetMarathonLevel() const noexcept { return m_marathonLevel; }
 
     [[nodiscard]] SavedRunState ExportCurrentRunState() const;
@@ -55,6 +61,7 @@ private:
     void UpdateMarathonSpeed();
 
     GameMode m_gameMode = GameMode::Roguelike;
+    GridGeometry m_geometry = GridGeometry::Orthogonal;
     int m_activeSlot = 1;
     std::optional<SavedRunState> m_restoredRun;
     uint32_t m_customSeed = 0;

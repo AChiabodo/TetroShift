@@ -8,9 +8,28 @@
 
 namespace TetroShift {
 
-PlayState::PlayState(GameMode mode, int activeSlot, std::optional<SavedRunState> restoredRun, uint32_t customSeed)
-    : m_gameMode(mode), m_activeSlot(activeSlot), m_restoredRun(std::move(restoredRun)), m_customSeed(customSeed) {
-    m_grid = std::make_unique<OrthogonalGrid>(GRID_WIDTH, GRID_HEIGHT, GRID_BUFFER_HEIGHT);
+PlayState::PlayState(GameMode mode, int activeSlot, std::optional<SavedRunState> restoredRun, uint32_t customSeed, GridGeometry geometry)
+    : m_gameMode(mode), m_geometry(geometry), m_activeSlot(activeSlot), m_restoredRun(std::move(restoredRun)), m_customSeed(customSeed) {
+    if (m_geometry == GridGeometry::Hexagonal) {
+        m_grid = std::make_unique<HexagonalGrid>(10, 18, 4);
+    } else if (m_geometry == GridGeometry::Radial) {
+        m_grid = std::make_unique<RadialGrid>(16, 12, 3);
+    } else {
+        m_grid = std::make_unique<OrthogonalGrid>(GRID_WIDTH, GRID_HEIGHT, GRID_BUFFER_HEIGHT);
+    }
+}
+
+void PlayState::SetGridGeometry(GridGeometry geom, GameApp& app) {
+    m_geometry = geom;
+    if (m_geometry == GridGeometry::Hexagonal) {
+        m_grid = std::make_unique<HexagonalGrid>(10, 18, 4);
+    } else if (m_geometry == GridGeometry::Radial) {
+        m_grid = std::make_unique<RadialGrid>(16, 12, 3);
+    } else {
+        m_grid = std::make_unique<OrthogonalGrid>(GRID_WIDTH, GRID_HEIGHT, GRID_BUFFER_HEIGHT);
+    }
+    m_grid->Clear();
+    SpawnNextPiece(app);
 }
 
 void PlayState::UpdateMarathonSpeed() {
@@ -164,10 +183,10 @@ void PlayState::SpawnNextPiece(GameApp& app) {
     CellType minoType = (m_gameMode == GameMode::Marathon) ? CellType::Solid : m_spawner.DetermineSpawnCellType();
     float elasticity = m_runManager.GetGlobalElasticity();
 
-    // Standard spawn position for 10-wide grid
-    GridCoord startPos = { 3, 0 };
-    if (nextType == TetrominoType::O) {
-        startPos = { 4, 0 };
+    // Standard spawn position for 10-wide grid, adjusted for radial/hex
+    GridCoord startPos = (nextType == TetrominoType::O) ? GridCoord{ 4, 0 } : GridCoord{ 3, 0 };
+    if (m_geometry == GridGeometry::Radial) {
+        startPos = (nextType == TetrominoType::O) ? GridCoord{ 7, 0 } : GridCoord{ 6, 0 };
     }
 
     m_activePiece.Spawn(nextType, startPos, minoType, elasticity);
@@ -523,14 +542,21 @@ void PlayState::HandleSandboxInput(GameApp& app) {
         m_particles.AddPopup(m_sandboxZeroGravity ? "0G FROZEN" : "GRAVITY ACTIVE", { PLAYFIELD_X + 160.0f, PLAYFIELD_Y + 120.0f }, m_sandboxZeroGravity ? RED : Colors::TextGreen, 1.2f);
     }
 
-    // F8 / F9 : Decrease / Increase Spring Elasticity
+    // F8 : Switch Grid Matrix Geometry (Orthogonal -> Hexagonal -> Radial)
     if (IsKeyPressed(KEY_F8)) {
-        m_sandboxElasticity = std::max(0.2f, m_sandboxElasticity - 0.2f);
-        m_runManager.SetGlobalElasticity(m_sandboxElasticity);
-        app.GetSoundSynth().PlayMenuToggle();
+        GridGeometry nextGeom = (m_geometry == GridGeometry::Orthogonal) ? GridGeometry::Hexagonal :
+                                (m_geometry == GridGeometry::Hexagonal) ? GridGeometry::Radial : GridGeometry::Orthogonal;
+        SetGridGeometry(nextGeom, app);
+        app.GetSoundSynth().PlayCardSelect();
+        const char* gName = (nextGeom == GridGeometry::Orthogonal) ? "ORTHOGONAL MATRIX" :
+                            (nextGeom == GridGeometry::Hexagonal) ? "HEXAGONAL MATRIX" : "RADIAL 360° MATRIX";
+        m_particles.AddPopup(gName, { PLAYFIELD_X + 160.0f, PLAYFIELD_Y + 120.0f }, Colors::TextAccent, 1.4f);
     }
+
+    // F9 : Cycle Spring Elasticity
     if (IsKeyPressed(KEY_F9)) {
-        m_sandboxElasticity = std::min(3.0f, m_sandboxElasticity + 0.2f);
+        m_sandboxElasticity += 0.5f;
+        if (m_sandboxElasticity > 3.0f) m_sandboxElasticity = 0.5f;
         m_runManager.SetGlobalElasticity(m_sandboxElasticity);
         app.GetSoundSynth().PlayMenuToggle();
     }
@@ -809,7 +835,8 @@ void PlayState::Render(GameApp& app) {
         m_sandboxElasticity,
         m_sandboxSelectedPiece,
         m_sandboxSelectedMinoType,
-        SaveManager::GetDailyDateString()
+        SaveManager::GetDailyDateString(),
+        m_geometry
     );
 
     // HUD Now Playing Banner

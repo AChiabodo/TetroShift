@@ -35,7 +35,8 @@ public:
         float sandboxElasticity = 1.0f,
         int sandboxPiece = 0,
         int sandboxMino = 0,
-        const std::string& dailyDate = ""
+        const std::string& dailyDate = "",
+        GridGeometry geometry = GridGeometry::Orthogonal
     ) const;
 
     void DrawCardUI(const struct Card& card, Rectangle bounds, bool isSelected = false, bool isHovered = false) const;
@@ -48,7 +49,7 @@ private:
     void DrawStatsPanel(const RunManager& runManager, Rectangle bounds, GameMode gameMode = GameMode::Roguelike, int marathonLevel = 1) const;
     void DrawRelicsPanel(const RunManager& runManager, Rectangle bounds) const;
     void DrawMarathonPanel(int level, float fallInterval, int linesTotal, Rectangle bounds) const;
-    void DrawSandboxToolbox(bool zeroGravity, float elasticity, int selectedPiece, int selectedMino, Rectangle bounds) const;
+    void DrawSandboxToolbox(bool zeroGravity, float elasticity, int selectedPiece, int selectedMino, GridGeometry geometry, Rectangle bounds) const;
     void DrawControlsPanel(Rectangle bounds, GameMode gameMode = GameMode::Roguelike) const;
     void DrawMiniTetromino(TetrominoType type, Vector2 center, float cellSize) const;
 
