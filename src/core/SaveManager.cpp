@@ -186,9 +186,9 @@ void SaveManager::Initialize() {
     m_highScores = LoadHighScores();
     if (m_highScores.empty()) {
         m_highScores = {
-            { 1, "WARP_RUNNER", 148200, 12, 114, "2026-08-30", "GRAND MASTER", { 255, 215, 0, 255 } },
-            { 2, "NEO_ARCHITECT", 98500, 8, 72, "2026-08-29", "WARP MASTER", { 0, 240, 255, 255 } },
-            { 3, "CYBER_PILOT", 42000, 4, 35, "2026-08-28", "ELITE RUNNER", { 190, 80, 255, 255 } }
+            { 1, "WARP_RUNNER", 148200, 12, 114, "ROGUELIKE", "2026-08-30", "GRAND MASTER", { 255, 215, 0, 255 } },
+            { 2, "NEO_ARCHITECT", 98500, 8, 72, "ROGUELIKE", "2026-08-29", "WARP MASTER", { 0, 240, 255, 255 } },
+            { 3, "CYBER_PILOT", 42000, 4, 35, "ROGUELIKE", "2026-08-28", "ELITE RUNNER", { 190, 80, 255, 255 } }
         };
         SaveHighScores(m_highScores);
     }
@@ -356,6 +356,7 @@ void SaveManager::SaveHighScores(const std::vector<HighScoreEntry>& scores) {
         file << "    \"score\": " << s.score << ",\n";
         file << "    \"floor\": " << s.floorReached << ",\n";
         file << "    \"lines\": " << s.linesCleared << ",\n";
+        file << "    \"gameMode\": \"" << s.gameModeName << "\",\n";
         file << "    \"date\": \"" << s.date << "\",\n";
         file << "    \"badge\": \"" << s.badge << "\"\n";
         file << "  }" << (i + 1 < scores.size() ? ",\n" : "\n");
@@ -387,6 +388,7 @@ std::vector<HighScoreEntry> SaveManager::LoadHighScores() {
         entry.score = ExtractIntField(block, "score", 0);
         entry.floorReached = ExtractIntField(block, "floor", 1);
         entry.linesCleared = ExtractIntField(block, "lines", 0);
+        entry.gameModeName = ExtractStringField(block, "gameMode", "ROGUELIKE");
         entry.date = ExtractStringField(block, "date", "2026-08-31");
         entry.badge = ExtractStringField(block, "badge", "RUNNER");
 
@@ -400,6 +402,30 @@ std::vector<HighScoreEntry> SaveManager::LoadHighScores() {
     }
 
     return list;
+}
+
+uint32_t SaveManager::ComputeDailySeed() {
+    std::time_t t = std::time(nullptr);
+    std::tm tm{};
+#if defined(_WIN32)
+    localtime_s(&tm, &t);
+#else
+    localtime_r(&t, &tm);
+#endif
+    return static_cast<uint32_t>((tm.tm_year + 1900) * 10000 + (tm.tm_mon + 1) * 100 + tm.tm_mday);
+}
+
+std::string SaveManager::GetDailyDateString() {
+    std::time_t t = std::time(nullptr);
+    std::tm tm{};
+#if defined(_WIN32)
+    localtime_s(&tm, &t);
+#else
+    localtime_r(&t, &tm);
+#endif
+    char buf[32];
+    std::snprintf(buf, sizeof(buf), "%04d-%02d-%02d", tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday);
+    return std::string(buf);
 }
 
 void SaveManager::AddHighScoreEntry(const HighScoreEntry& entry) {

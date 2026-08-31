@@ -39,6 +39,10 @@ public:
     [[nodiscard]] std::vector<HighScoreEntry> LoadHighScores();
     void AddHighScoreEntry(const HighScoreEntry& entry);
 
+    // Daily seed helpers
+    static uint32_t ComputeDailySeed();
+    static std::string GetDailyDateString();
+
     // Roguelike Run Slots
     void SaveRunSlot(int slotId, const SavedRunState& runState);
     bool LoadRunSlot(int slotId, SavedRunState& outRunState);
