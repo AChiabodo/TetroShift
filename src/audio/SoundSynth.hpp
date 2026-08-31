@@ -22,6 +22,11 @@ public:
     void PlayLock();
     void PlayLineClear(int linesCount);
     void PlayTetris();
+    void PlayTSpin();
+    void PlayBackToBack();
+    void PlayBombExplosion();
+    void PlaySandSlide();
+    void PlayCombo(int comboCount);
     void PlayCardSelect();
     void PlayGameOver();
     void PlayLevelUp();
@@ -51,6 +56,10 @@ private:
     Sound m_sndLineClear2{};
     Sound m_sndLineClear3{};
     Sound m_sndTetris{};
+    Sound m_sndTSpin{};
+    Sound m_sndBackToBack{};
+    Sound m_sndBombExplosion{};
+    Sound m_sndSandSlide{};
     Sound m_sndCardSelect{};
     Sound m_sndGameOver{};
     Sound m_sndLevelUp{};

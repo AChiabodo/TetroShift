@@ -20,7 +20,10 @@ enum class MenuView {
 
 // Global configurable settings
 struct GameSettings {
-    float masterVolume = 0.8f;
+    float masterVolume = 0.80f;
+    float musicVolume = 0.75f;
+    float sfxVolume = 0.85f;
+    int fixedSoundtrack = 0;        // 0: Dynamic by Floor, 1..8: Fixed Soundtrack
     bool isMuted = false;
     int screenShakeLevel = 2;       // 0: Off, 1: Subtle, 2: Normal, 3: Heavy
     bool crtScanlines = true;
@@ -45,6 +48,14 @@ struct PlayerProfileData {
     int energyCredits = 1450; // Currency for Shop
 };
 
+// Supported Game Modes
+enum class GameMode {
+    Roguelike,      // Standard Roguelike with Card Drafts, Shop, Boss Hazards
+    Marathon,       // Classic Pure Arcade Marathon (Level 1..15, no cards, standard speed curve)
+    DailyProtocol,  // Daily seeded run with fixed daily seed YYYYMMDD
+    Sandbox         // Training / Sandbox mode with real-time UI toolbox
+};
+
 // Save Slot model for future load/save subsystem
 enum class SaveSlotState {
     Empty,
@@ -55,6 +66,7 @@ enum class SaveSlotState {
 struct SaveSlotData {
     int slotId = 1;
     SaveSlotState state = SaveSlotState::Empty;
+    GameMode gameMode = GameMode::Roguelike;
     std::string runMode = "ROGUELIKE RUN";
     int currentFloor = 1;
     int currentScore = 0;
@@ -65,6 +77,30 @@ struct SaveSlotData {
     Color accentColor = { 0, 240, 255, 255 };
 };
 
+// Complete serialized Roguelike run state for disk suspension and loading
+struct SavedRunState {
+    int slotId = 1;
+    SaveSlotState state = SaveSlotState::ActiveRun;
+    GameMode gameMode = GameMode::Roguelike;
+    std::string runMode = "ROGUELIKE RUN";
+    std::string timestamp = "2026-08-31 11:00";
+    int floor = 1;
+    int score = 0;
+    int linesTotal = 0;
+    int linesThisFloor = 0;
+    int floorLineTarget = 6;
+    int coins = 20;
+    int rerollTokens = 1;
+    float scoreMultiplier = 1.0f;
+    float speedMultiplier = 1.0f;
+    float globalElasticity = 1.0f;
+    std::vector<std::string> cardIds;
+    std::vector<std::string> gridCells; // 20 strings of length 10 representing cells
+    TetrominoType holdPiece = TetrominoType::None;
+    bool canHold = true;
+    uint32_t rngState = 1337;
+};
+
 // High score record entry
 struct HighScoreEntry {
     int rank = 1;
@@ -72,6 +108,7 @@ struct HighScoreEntry {
     int score = 0;
     int floorReached = 1;
     int linesCleared = 0;
+    std::string gameModeName = "ROGUELIKE";
     std::string date = "2026-08-30";
     std::string badge = "LEGEND";
     Color badgeColor = { 255, 215, 0, 255 };

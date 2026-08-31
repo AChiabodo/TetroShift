@@ -13,7 +13,8 @@ enum class TetrominoType : uint8_t {
     S,
     T,
     Z,
-    Count
+    Count,
+    None = 255
 };
 
 [[nodiscard]] constexpr Color GetTetrominoColor(TetrominoType type) noexcept {

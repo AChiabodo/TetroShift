@@ -45,7 +45,7 @@ private:
     void HandleInputQuitConfirm(GameApp& app);
 
     // Data initialization helpers
-    void InitializeMockData();
+    void InitializeRealData(GameApp& app);
 
     // State Variables
     MenuView m_currentView = MenuView::Main;
@@ -63,6 +63,7 @@ private:
     std::vector<ShopItemData> m_shopItems;
     std::vector<CustomThemeData> m_customThemes;
     int m_selectedThemeIndex = 0;
+    int m_selectedJukeboxIndex = 0;
 };
 
 } // namespace TetroShift

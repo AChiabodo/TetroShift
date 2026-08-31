@@ -23,12 +23,18 @@ public:
     [[nodiscard]] const std::optional<TetrominoType>& GetHoldPiece() const noexcept { return m_holdPiece; }
     [[nodiscard]] const std::optional<TetrominoType>& GetSecondHoldPiece() const noexcept { return m_secondHoldPiece; }
     [[nodiscard]] bool CanHold() const noexcept { return m_canHoldThisDrop; }
+    void SetHoldPiece(TetrominoType piece) noexcept {
+        if (piece == TetrominoType::None) m_holdPiece = std::nullopt;
+        else m_holdPiece = piece;
+    }
+    void SetCanHold(bool can) noexcept { m_canHoldThisDrop = can; }
 
     // Modifiers / Upgrades
     void SetDoubleHold(bool enabled) noexcept { m_doubleHoldUnlocked = enabled; }
     void SetMidasFrequency(int everyNPieces) noexcept { m_midasFrequency = everyNPieces; }
     void SetBombChance(float chance) noexcept { m_bombChance = chance; }
     void SetJellyChance(float chance) noexcept { m_jellyChance = chance; }
+    void SetSandChance(float chance) noexcept { m_sandChance = chance; }
 
     [[nodiscard]] CellType DetermineSpawnCellType();
 
@@ -47,6 +53,7 @@ private:
     int m_midasFrequency = 0; // 0 = disabled, >0 = every N pieces
     float m_bombChance = 0.0f;
     float m_jellyChance = 0.0f;
+    float m_sandChance = 0.0f;
 };
 
 } // namespace TetroShift

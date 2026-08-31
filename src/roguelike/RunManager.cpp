@@ -16,6 +16,7 @@ void RunManager::Reset() {
     m_linesThisFloor = 0;
     m_floorLineTarget = 6;
     m_combo = -1;
+    m_b2bStreak = 0;
     m_scoreMultiplier = 1.0f;
     m_speedMultiplier = 1.0f;
     m_globalElasticity = 1.0f;
@@ -24,39 +25,81 @@ void RunManager::Reset() {
     m_inventory.Reset();
 }
 
-void RunManager::AddScore(int basePoints, const std::string& reason) {
+void RunManager::AddScore(int basePoints, const std::string& /*reason*/) {
     const int finalPoints = static_cast<int>(std::round(static_cast<float>(basePoints) * m_scoreMultiplier));
     m_score += finalPoints;
 }
 
-void RunManager::RegisterLineClear(int linesCount, bool isTetris, const CardContext& ctx) {
-    if (linesCount <= 0) {
+void RunManager::RegisterLineClear(int linesCount, bool isTetris, const CardContext& ctx, TSpinType tspin) {
+    if (linesCount <= 0 && tspin == TSpinType::None) {
         m_combo = -1;
         return;
     }
 
-    m_combo++;
-    m_linesTotal += linesCount;
-    m_linesThisFloor += linesCount;
-
-    // Base scoring formula
-    int basePoints = 0;
-    switch (linesCount) {
-        case 1: basePoints = 100 * m_floor; break;
-        case 2: basePoints = 300 * m_floor; break;
-        case 3: basePoints = 500 * m_floor; break;
-        case 4: basePoints = 800 * m_floor; break;
-        default: basePoints = 1000 * m_floor; break;
+    if (linesCount > 0) {
+        m_combo++;
+        m_linesTotal += linesCount;
+        m_linesThisFloor += linesCount;
     }
 
+    // Determine if this clear qualifies as a "Difficult" action for Back-to-Back
+    bool isDifficult = (isTetris || (tspin != TSpinType::None && linesCount > 0));
+    bool triggeredB2B = false;
+
+    if (isDifficult) {
+        m_b2bStreak++;
+        if (m_b2bStreak > 1) {
+            triggeredB2B = true;
+        }
+    } else if (linesCount > 0) {
+        // Normal single/double/triple resets B2B streak
+        m_b2bStreak = 0;
+    }
+
+    // Official scoring formula
+    int basePoints = 0;
+    std::string scoreReason = "LINE CLEAR";
+
+    if (tspin == TSpinType::Standard) {
+        switch (linesCount) {
+            case 0: basePoints = 400 * m_floor; scoreReason = "T-SPIN"; break;
+            case 1: basePoints = 800 * m_floor; scoreReason = "T-SPIN SINGLE!"; break;
+            case 2: basePoints = 1200 * m_floor; scoreReason = "T-SPIN DOUBLE!"; break;
+            case 3: basePoints = 1600 * m_floor; scoreReason = "T-SPIN TRIPLE!"; break;
+            default: basePoints = 1600 * m_floor; break;
+        }
+    } else if (tspin == TSpinType::Mini) {
+        switch (linesCount) {
+            case 0: basePoints = 100 * m_floor; scoreReason = "T-SPIN MINI"; break;
+            case 1: basePoints = 200 * m_floor; scoreReason = "T-SPIN MINI SINGLE"; break;
+            case 2: basePoints = 400 * m_floor; scoreReason = "T-SPIN MINI DOUBLE"; break;
+            default: basePoints = 400 * m_floor; break;
+        }
+    } else {
+        switch (linesCount) {
+            case 1: basePoints = 100 * m_floor; scoreReason = "SINGLE"; break;
+            case 2: basePoints = 300 * m_floor; scoreReason = "DOUBLE"; break;
+            case 3: basePoints = 500 * m_floor; scoreReason = "TRIPLE"; break;
+            case 4: basePoints = 800 * m_floor; scoreReason = "TETRIS!"; break;
+            default: basePoints = 1000 * m_floor; break;
+        }
+    }
+
+    // Apply B2B 1.5x multiplier
+    if (triggeredB2B) {
+        basePoints = static_cast<int>(std::round(static_cast<float>(basePoints) * 1.5f));
+        scoreReason = "B2B " + scoreReason;
+    }
+
+    // Apply Combo scaling bonus
     if (m_combo > 0) {
         basePoints += 50 * m_combo * m_floor;
     }
 
-    AddScore(basePoints, isTetris ? "TETRIS!" : "LINE CLEAR");
+    AddScore(basePoints, scoreReason);
 
-    // Coins gained (1 coin per line, 5 bonus for Tetris)
-    int coinsEarned = linesCount + (isTetris ? 5 : 0);
+    // Coins gained (1 coin per line, 5 bonus for Tetris, 8 bonus for T-Spin, 3 for B2B)
+    int coinsEarned = linesCount + (isTetris ? 5 : 0) + (tspin != TSpinType::None ? 8 : 0) + (triggeredB2B ? 3 : 0);
     m_inventory.AddCoins(coinsEarned);
 
     // Trigger card hooks for passive relics
@@ -67,7 +110,9 @@ void RunManager::RegisterLineClear(int linesCount, bool isTetris, const CardCont
     }
 
     // Tick cooldowns for active cards
-    m_inventory.TickCooldowns(linesCount);
+    if (linesCount > 0) {
+        m_inventory.TickCooldowns(linesCount);
+    }
 
     // Floor objective check
     if (m_linesThisFloor >= m_floorLineTarget) {

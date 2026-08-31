@@ -17,14 +17,39 @@ GameApp::GameApp() {
 
     InitAudioDevice();
     m_soundSynth.Initialize();
+    m_musicManager.Initialize();
+    m_saveManager.Initialize();
+    m_fontManager.Initialize();
+    m_screenEffects.Initialize(WINDOW_WIDTH, WINDOW_HEIGHT);
+
+    // Apply persisted settings
+    const auto& settings = m_saveManager.GetSettings();
+    m_soundSynth.SetMasterVolume(settings.sfxVolume * settings.masterVolume);
+    m_musicManager.SetVolume(settings.musicVolume * settings.masterVolume);
+    m_screenEffects.SetScanlinesEnabled(settings.crtScanlines);
+
+    // Initialize full-screen offscreen render target for GPU post-processing
+    m_screenTexture = LoadRenderTexture(WINDOW_WIDTH, WINDOW_HEIGHT);
+    SetTextureFilter(m_screenTexture.texture, TEXTURE_FILTER_BILINEAR);
 
     m_stateManager.SetState(*this, std::make_unique<TitleState>());
 }
 
 GameApp::~GameApp() {
+    if (m_screenTexture.id > 0) {
+        UnloadRenderTexture(m_screenTexture);
+        m_screenTexture = {};
+    }
+    m_screenEffects.Shutdown();
+    m_fontManager.Shutdown();
+    m_musicManager.Shutdown();
     m_soundSynth.Shutdown();
-    CloseAudioDevice();
-    CloseWindow();
+    if (IsAudioDeviceReady()) {
+        CloseAudioDevice();
+    }
+    if (IsWindowReady()) {
+        CloseWindow();
+    }
 }
 
 void GameApp::Run() {
@@ -33,32 +58,67 @@ void GameApp::Run() {
         float dt = GetFrameTime();
         if (dt > 0.1f) dt = 0.1f; // Clamp frame delta on lag spikes
 
-        m_stateManager.HandleInput(*this);
-        m_stateManager.Update(*this, dt);
+        m_musicManager.Update(dt);
+        m_screenEffects.Update(dt);
 
-        BeginDrawing();
+        m_stateManager.HandleInput(*this);
+        if (!m_isRunning) break;
+
+        m_stateManager.Update(*this, dt);
+        if (!m_isRunning) break;
+
+        // 1. Render game scene to offscreen texture
+        BeginTextureMode(m_screenTexture);
+        ClearBackground(Colors::BgDark);
         m_stateManager.Render(*this);
+        EndTextureMode();
+
+        // 2. Post-processing GPU shader pass to screen backbuffer
+        BeginDrawing();
+        ClearBackground(BLACK);
+        m_screenEffects.RenderPostProcessing(m_screenTexture, WINDOW_WIDTH, WINDOW_HEIGHT);
         EndDrawing();
     }
 }
 
+PlayState* GameApp::GetActivePlayState() {
+    return dynamic_cast<PlayState*>(m_stateManager.GetCurrentState());
+}
+
 const Inventory& GameApp::GetPlayStateInventory() const {
-    static Inventory fallback;
-    return fallback;
+    PlayState* ps = const_cast<GameApp*>(this)->GetActivePlayState();
+    if (ps) {
+        return ps->GetRunManager().GetInventory();
+    }
+    static Inventory emptyInv;
+    return emptyInv;
+}
+
+Inventory* GameApp::GetPlayStateInventoryMut() {
+    PlayState* ps = GetActivePlayState();
+    if (ps) {
+        return &ps->GetRunManager().GetInventory();
+    }
+    return nullptr;
 }
 
 void GameApp::ApplyDraftCard(const Card& card) {
-    // In our state hierarchy, PlayState is the base state under the Draft overlay
-    // We will publish the event and advance
-    m_eventBus.Publish(EventCardAcquired{ card.id });
+    EventCardAcquired evt{ card.id };
+    m_eventBus.Publish(evt);
 }
 
 bool GameApp::UseRerollToken() {
-    return true;
+    Inventory* inv = GetPlayStateInventoryMut();
+    if (inv && inv->GetRerolls() > 0) {
+        inv->SetRerolls(inv->GetRerolls() - 1);
+        return true;
+    }
+    return false;
 }
 
 int GameApp::GetRemainingRerolls() const {
-    return 1;
+    const Inventory& inv = GetPlayStateInventory();
+    return inv.GetRerolls();
 }
 
 } // namespace TetroShift

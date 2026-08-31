@@ -74,15 +74,27 @@ void MenuRenderer::DrawHeaderBanner(const char* title, const char* category, con
     if (category) {
         path += category;
     }
-    DrawText(path.c_str(), 48, 28, 12, Colors::TextDim);
+
+    if (m_fontManager && m_fontManager->HasCustomFonts()) {
+        m_fontManager->DrawBody(path.c_str(), { 48.0f, 28.0f }, 14.0f, Colors::TextDim);
+    } else {
+        DrawText(path.c_str(), 48, 28, 12, Colors::TextDim);
+    }
 
     // Main Title
     if (title) {
-        DrawText(title, 48, 46, 32, Colors::TextWhite);
+        float titleW = 0.0f;
+        if (m_fontManager && m_fontManager->HasCustomFonts()) {
+            m_fontManager->DrawGlow(m_fontManager->GetTitleFont(), title, { 48.0f, 46.0f }, 32.0f, Colors::TextWhite, Colors::PieceI, 2.5f);
+            titleW = m_fontManager->MeasureTitle(title, 32.0f).x;
+        } else {
+            DrawText(title, 48, 46, 32, Colors::TextWhite);
+            titleW = static_cast<float>(MeasureText(title, 32));
+        }
+
         // Underline glowing accent
-        int titleW = MeasureText(title, 32);
-        DrawLineEx({ 48.0f, 84.0f }, { 48.0f + static_cast<float>(titleW) + 40.0f, 84.0f }, 2.5f, Colors::PieceI);
-        DrawLineEx({ 48.0f + static_cast<float>(titleW) + 45.0f, 84.0f }, { 48.0f + static_cast<float>(titleW) + 65.0f, 84.0f }, 2.5f, Colors::PieceT);
+        DrawLineEx({ 48.0f, 84.0f }, { 48.0f + titleW + 40.0f, 84.0f }, 2.5f, Colors::PieceI);
+        DrawLineEx({ 48.0f + titleW + 45.0f, 84.0f }, { 48.0f + titleW + 65.0f, 84.0f }, 2.5f, Colors::PieceT);
     }
 }
 
@@ -181,16 +193,30 @@ bool MenuRenderer::DrawNeonButton(
     }
 
     // Label
-    int textY = static_cast<int>(bounds.y + (bounds.height - 18.0f) * 0.5f);
-    DrawText(label, static_cast<int>(bounds.x + 22.0f), textY, 17, textColor);
+    float textY = bounds.y + (bounds.height - 18.0f) * 0.5f;
+    if (m_fontManager && m_fontManager->HasCustomFonts()) {
+        if (isSelected) {
+            m_fontManager->DrawGlow(m_fontManager->GetTitleFont(), label, { bounds.x + 22.0f, textY }, 17.0f, textColor, accentColor, 1.5f);
+        } else {
+            m_fontManager->DrawBody(label, { bounds.x + 22.0f, textY }, 17.0f, textColor);
+        }
+    } else {
+        DrawText(label, static_cast<int>(bounds.x + 22.0f), static_cast<int>(textY), 17, textColor);
+    }
 
     // Badge / Extra info on the right
     if (badge) {
-        int badgeW = MeasureText(badge, 11);
-        Rectangle badgeRect = { bounds.x + bounds.width - static_cast<float>(badgeW) - 24.0f, bounds.y + (bounds.height - 20.0f) * 0.5f, static_cast<float>(badgeW + 14.0f), 20.0f };
+        float badgeW = (m_fontManager && m_fontManager->HasCustomFonts()) ?
+                       m_fontManager->MeasureBody(badge, 12.0f).x : static_cast<float>(MeasureText(badge, 11));
+        Rectangle badgeRect = { bounds.x + bounds.width - badgeW - 24.0f, bounds.y + (bounds.height - 20.0f) * 0.5f, badgeW + 14.0f, 20.0f };
         DrawRectangleRounded(badgeRect, 0.3f, 4, isSelected ? Fade(accentColor, 0.3f) : Colors::GridBg);
         DrawRectangleLinesEx(badgeRect, 1.0f, isSelected ? accentColor : Colors::BgPanelBorder);
-        DrawText(badge, static_cast<int>(badgeRect.x + 7.0f), static_cast<int>(badgeRect.y + 4.0f), 11, isSelected ? accentColor : Colors::TextDim);
+
+        if (m_fontManager && m_fontManager->HasCustomFonts()) {
+            m_fontManager->DrawBody(badge, { badgeRect.x + 7.0f, badgeRect.y + 3.0f }, 12.0f, isSelected ? accentColor : Colors::TextDim);
+        } else {
+            DrawText(badge, static_cast<int>(badgeRect.x + 7.0f), static_cast<int>(badgeRect.y + 4.0f), 11, isSelected ? accentColor : Colors::TextDim);
+        }
     }
 
     return isSelected || isHovered;
@@ -487,6 +513,24 @@ void MenuRenderer::DrawModalFrame(Rectangle bounds, const char* title) const {
     Rectangle headerRect = { bounds.x + 2.0f, bounds.y + 2.0f, bounds.width - 4.0f, 40.0f };
     DrawRectangleRounded(headerRect, 0.1f, 4, Fade(Colors::PieceBomb, 0.2f));
     DrawText(title, static_cast<int>(headerRect.x + 18.0f), static_cast<int>(headerRect.y + 12.0f), 16, Colors::TextWhite);
+}
+
+void MenuRenderer::DrawNowPlayingBanner(const char* title, const char* genre, float alpha) const {
+    if (alpha <= 0.001f || !title) return;
+
+    std::string text = std::string("♪ NOW PLAYING: ") + title;
+    if (genre && genre[0] != '\0') {
+        text += " [" + std::string(genre) + "]";
+    }
+
+    int textW = MeasureText(text.c_str(), 12);
+    float boxW = static_cast<float>(textW + 36);
+    float boxH = 28.0f;
+    Rectangle pill = { (WINDOW_WIDTH - boxW) * 0.5f, 14.0f, boxW, boxH };
+
+    DrawRectangleRounded(pill, 0.4f, 4, Fade(Colors::BgPanel, alpha * 0.90f));
+    DrawRectangleLinesEx(pill, 1.2f, Fade(Colors::PieceI, alpha * 0.85f));
+    DrawText(text.c_str(), static_cast<int>(pill.x + 18.0f), static_cast<int>(pill.y + 7.0f), 12, Fade(Colors::PieceI, alpha));
 }
 
 } // namespace TetroShift

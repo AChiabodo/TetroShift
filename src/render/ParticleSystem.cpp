@@ -7,6 +7,7 @@ namespace TetroShift {
 
 void ParticleSystem::Reset() {
     m_particles.clear();
+    m_shockwaves.clear();
     m_popups.clear();
 }
 
@@ -23,6 +24,18 @@ void ParticleSystem::Update(float dt) {
                 it->velocity.y += 400.0f * dt; // Gravity
             }
             it->velocity.x *= 0.98f; // Friction
+            ++it;
+        }
+    }
+
+    // Update Shockwave Rings
+    for (auto it = m_shockwaves.begin(); it != m_shockwaves.end();) {
+        it->life -= dt;
+        if (it->life <= 0.0f) {
+            it = m_shockwaves.erase(it);
+        } else {
+            float progress = 1.0f - (it->life / it->maxLife);
+            it->currentRadius = it->maxRadius * progress;
             ++it;
         }
     }
@@ -62,22 +75,35 @@ void ParticleSystem::EmitLineClear(float rowWorldY, float startX, float endX, Co
 }
 
 void ParticleSystem::EmitBombBlast(Vector2 center, Color color, int count) {
+    EmitShockwaveRing(center, color, 140.0f);
+
     for (int i = 0; i < count; ++i) {
         Particle p;
         p.position = center;
 
         float angle = (static_cast<float>(std::rand()) / static_cast<float>(RAND_MAX)) * 6.283185f;
-        float speed = 100.0f + (static_cast<float>(std::rand()) / static_cast<float>(RAND_MAX)) * 320.0f;
+        float speed = 100.0f + (static_cast<float>(std::rand()) / static_cast<float>(RAND_MAX)) * 340.0f;
         p.velocity = { std::cos(angle) * speed, std::sin(angle) * speed };
 
-        p.color = (i % 2 == 0) ? color : ORANGE;
-        p.size = 4.0f + (static_cast<float>(std::rand()) / static_cast<float>(RAND_MAX)) * 6.0f;
+        p.color = (i % 3 == 0) ? YELLOW : ((i % 2 == 0) ? color : ORANGE);
+        p.size = 4.0f + (static_cast<float>(std::rand()) / static_cast<float>(RAND_MAX)) * 7.0f;
         p.maxLife = 0.6f + (static_cast<float>(std::rand()) / static_cast<float>(RAND_MAX)) * 0.6f;
         p.life = p.maxLife;
-        p.hasGravity = false;
+        p.hasGravity = true;
 
         m_particles.push_back(p);
     }
+}
+
+void ParticleSystem::EmitShockwaveRing(Vector2 center, Color color, float maxRadius) {
+    ShockwaveRing ring;
+    ring.center = center;
+    ring.currentRadius = 0.0f;
+    ring.maxRadius = maxRadius;
+    ring.life = 0.45f;
+    ring.maxLife = 0.45f;
+    ring.color = color;
+    m_shockwaves.push_back(ring);
 }
 
 void ParticleSystem::EmitHardDropDust(Vector2 landingPos, Color color, int count) {
@@ -96,6 +122,26 @@ void ParticleSystem::EmitHardDropDust(Vector2 landingPos, Color color, int count
         p.life = p.maxLife;
         p.hasGravity = true;
 
+        m_particles.push_back(p);
+    }
+}
+
+void ParticleSystem::EmitSandDust(Vector2 pos, int count) {
+    for (int i = 0; i < count; ++i) {
+        Particle p;
+        p.position = {
+            pos.x + (static_cast<float>(std::rand()) / static_cast<float>(RAND_MAX) - 0.5f) * 16.0f,
+            pos.y + (static_cast<float>(std::rand()) / static_cast<float>(RAND_MAX) - 0.5f) * 16.0f
+        };
+        p.velocity = {
+            (static_cast<float>(std::rand()) / static_cast<float>(RAND_MAX) - 0.5f) * 40.0f,
+            -(10.0f + (static_cast<float>(std::rand()) / static_cast<float>(RAND_MAX)) * 30.0f)
+        };
+        p.color = Color{ 235, 185, 90, 220 };
+        p.size = 2.0f;
+        p.maxLife = 0.35f + (static_cast<float>(std::rand()) / static_cast<float>(RAND_MAX)) * 0.25f;
+        p.life = p.maxLife;
+        p.hasGravity = true;
         m_particles.push_back(p);
     }
 }
@@ -132,6 +178,16 @@ void ParticleSystem::AddPopup(const std::string& text, Vector2 position, Color c
 }
 
 void ParticleSystem::Render() const {
+    // Render Shockwave Rings
+    for (const auto& ring : m_shockwaves) {
+        float alpha = ring.life / ring.maxLife;
+        Color drawCol = Fade(ring.color, alpha * 0.8f);
+        DrawCircleLines(static_cast<int>(ring.center.x), static_cast<int>(ring.center.y), ring.currentRadius, drawCol);
+        if (ring.currentRadius > 3.0f) {
+            DrawCircleLines(static_cast<int>(ring.center.x), static_cast<int>(ring.center.y), ring.currentRadius - 2.0f, Fade(drawCol, 0.5f));
+        }
+    }
+
     // Render Particles
     for (const auto& p : m_particles) {
         float alpha = p.life / p.maxLife;

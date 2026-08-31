@@ -5,11 +5,16 @@
 #include "states/MenuTypes.hpp"
 #include "piece/TetrominoDefinition.hpp"
 
+#include "FontManager.hpp"
+
 namespace TetroShift {
 
 class MenuRenderer {
 public:
     MenuRenderer() = default;
+
+    void SetFontManager(const FontManager* fm) noexcept { m_fontManager = fm; }
+    [[nodiscard]] const FontManager* GetFontManager() const noexcept { return m_fontManager; }
 
     // Background & Atmospherics
     void DrawAnimatedBackground(float timer) const;
@@ -86,6 +91,10 @@ public:
     ) const;
 
     void DrawModalFrame(Rectangle bounds, const char* title) const;
+    void DrawNowPlayingBanner(const char* title, const char* genre, float alpha) const;
+
+private:
+    const FontManager* m_fontManager = nullptr;
 };
 
 } // namespace TetroShift

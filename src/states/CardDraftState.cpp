@@ -1,4 +1,5 @@
 #include "CardDraftState.hpp"
+#include "InRunShopState.hpp"
 #include "PlayState.hpp"
 #include "core/GameApp.hpp"
 #include "core/Constants.hpp"
@@ -13,6 +14,9 @@ void CardDraftState::OnEnter(GameApp& app) {
     m_animTimer = 0.0f;
     m_selectedIndex = 0;
     m_hoveredIndex = -1;
+
+    // Crossfade to ambient draft contemplation soundtrack
+    app.GetMusicManager().PlayTrack(TrackId::DraftTheme, true);
 
     // Generate choices
     m_choices = app.GetCardDatabase().GenerateDraftChoices(3, app.GetPlayStateInventory(), m_floorNumber);
@@ -32,8 +36,9 @@ void CardDraftState::SelectCard(GameApp& app, size_t index) {
     // Add selected card to inventory and advance floor
     app.ApplyDraftCard(m_choices[index]);
 
-    // Pop draft overlay to resume play
+    // Pop draft overlay and transition to In-Run Shop station
     app.GetStateManager().PopOverlay(app);
+    app.GetStateManager().PushOverlay(app, std::make_unique<InRunShopState>(m_floorNumber + 1));
 }
 
 void CardDraftState::Reroll(GameApp& app) {
@@ -123,6 +128,7 @@ void CardDraftState::Render(GameApp& app) {
     const float startY = (WINDOW_HEIGHT - cardHeight) * 0.5f + 20.0f;
 
     Renderer renderer;
+    renderer.SetFontManager(&app.GetFontManager());
     for (size_t i = 0; i < m_choices.size(); ++i) {
         float floatOffset = (static_cast<int>(i) == m_selectedIndex) ? std::sin(m_animTimer * 5.0f) * 4.0f - 8.0f : 0.0f;
         Rectangle cardRect = {

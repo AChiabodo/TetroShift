@@ -4,18 +4,18 @@
 
 namespace TetroShift {
 
-class OrthogonalGrid : public IGrid {
+class RadialGrid : public IGrid {
 public:
-    OrthogonalGrid(int width = 10, int height = 20, int bufferHeight = 4);
-    ~OrthogonalGrid() override = default;
+    RadialGrid(int numSectors = 16, int numRings = 12, int bufferRings = 3);
+    ~RadialGrid() override = default;
 
-    void Initialize(int width, int height, int bufferHeight = 4) override;
+    void Initialize(int width, int height, int bufferHeight = 3) override;
     void Clear() override;
 
-    [[nodiscard]] int GetWidth() const noexcept override { return m_width; }
-    [[nodiscard]] int GetHeight() const noexcept override { return m_height; }
-    [[nodiscard]] int GetTotalHeight() const noexcept override { return m_height + m_bufferHeight; }
-    [[nodiscard]] GridGeometry GetGeometryType() const noexcept override { return GridGeometry::Orthogonal; }
+    [[nodiscard]] int GetWidth() const noexcept override { return m_numSectors; }
+    [[nodiscard]] int GetHeight() const noexcept override { return m_numRings; }
+    [[nodiscard]] int GetTotalHeight() const noexcept override { return m_numRings + m_bufferRings; }
+    [[nodiscard]] GridGeometry GetGeometryType() const noexcept override { return GridGeometry::Radial; }
 
     [[nodiscard]] bool IsValidCoord(const GridCoord& coord) const noexcept override;
     [[nodiscard]] bool IsCellOccupied(const GridCoord& coord) const noexcept override;
@@ -28,10 +28,6 @@ public:
     [[nodiscard]] Vector2 CoordToWorld(const GridCoord& coord, Vector2 gridOrigin, float cellSize) const noexcept override;
     void Render(Vector2 gridOrigin, float cellSize, bool showDebugHitbox = false) const override;
 
-    // Special modifier actions
-    void ApplyHorizontalMagneticPull(bool toRight);
-    void ExplodeArea(const GridCoord& center, int radius, std::vector<GridCoord>& outDestroyed);
-
     void PushGarbageRow(int holeCol, CellType type = CellType::Solid, Color color = DARKGRAY) override;
     void VaporizeTopRows(int count) override;
     void VaporizeBottomRow() override;
@@ -40,15 +36,22 @@ public:
     [[nodiscard]] std::vector<std::string> Serialize() const override;
     void Deserialize(const std::vector<std::string>& data) override;
 
-    bool UpdateSandPhysics();
+    void ExplodeArea(const GridCoord& center, int radius, std::vector<GridCoord>& outDestroyed);
+
+    [[nodiscard]] float GetInnerRadius() const noexcept { return m_innerRadius; }
+    [[nodiscard]] float GetOuterRadius() const noexcept { return m_outerRadius; }
 
 private:
     [[nodiscard]] int CoordToIndex(const GridCoord& coord) const noexcept;
+    [[nodiscard]] int NormalizeSector(int x) const noexcept;
 
-    int m_width = 10;
-    int m_height = 20;
-    int m_bufferHeight = 4;
-    float m_sandTimer = 0.0f;
+    int m_numSectors = 16;
+    int m_numRings = 12;
+    int m_bufferRings = 3;
+    float m_innerRadius = 55.0f;
+    float m_outerRadius = 310.0f;
+    float m_pulseTimer = 0.0f;
+
     std::vector<Cell> m_cells;
     Cell m_emptyCell;
 };
