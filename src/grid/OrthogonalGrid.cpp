@@ -277,4 +277,71 @@ void OrthogonalGrid::Render(Vector2 gridOrigin, float cellSize, bool showDebugHi
     DrawRectangleLinesEx({ gridOrigin.x - 2.0f, gridOrigin.y - 2.0f, gridPxWidth + 4.0f, gridPxHeight + 4.0f }, 2.0f, Colors::BgPanelBorder);
 }
 
+std::vector<std::string> OrthogonalGrid::Serialize() const {
+    std::vector<std::string> rows;
+    rows.reserve(m_height);
+    for (int y = 0; y < m_height; ++y) {
+        std::string row;
+        row.reserve(m_width);
+        for (int x = 0; x < m_width; ++x) {
+            const Cell& c = GetCell({ x, y });
+            if (!c.IsSolid()) {
+                row.push_back('.');
+            } else {
+                switch (c.type) {
+                    case CellType::Bomb:         row.push_back('B'); break;
+                    case CellType::Gold:         row.push_back('G'); break;
+                    case CellType::Jelly:        row.push_back('E'); break;
+                    case CellType::HeavyIron:    row.push_back('H'); break;
+                    case CellType::QuantumGhost: row.push_back('Q'); break;
+                    case CellType::Glitch:       row.push_back('X'); break;
+                    default: {
+                        if (c.color.r > 200 && c.color.g < 100 && c.color.b < 100) row.push_back('Z');
+                        else if (c.color.r < 100 && c.color.g > 200 && c.color.b < 100) row.push_back('S');
+                        else if (c.color.r < 100 && c.color.g > 200 && c.color.b > 200) row.push_back('I');
+                        else if (c.color.r < 100 && c.color.g < 100 && c.color.b > 200) row.push_back('J');
+                        else if (c.color.r > 200 && c.color.g > 100 && c.color.b < 100) row.push_back('L');
+                        else if (c.color.r > 200 && c.color.g > 200 && c.color.b < 100) row.push_back('O');
+                        else if (c.color.r > 150 && c.color.g < 100 && c.color.b > 150) row.push_back('T');
+                        else row.push_back('S');
+                        break;
+                    }
+                }
+            }
+        }
+        rows.push_back(row);
+    }
+    return rows;
+}
+
+void OrthogonalGrid::Deserialize(const std::vector<std::string>& data) {
+    Clear();
+    for (int y = 0; y < m_height && y < static_cast<int>(data.size()); ++y) {
+        const std::string& row = data[y];
+        for (int x = 0; x < m_width && x < static_cast<int>(row.size()); ++x) {
+            char ch = row[x];
+            if (ch == '.') continue;
+            Cell c;
+            c.type = CellType::Solid;
+            switch (ch) {
+                case 'B': c.type = CellType::Bomb; c.color = Colors::PieceBomb; break;
+                case 'G': c.type = CellType::Gold; c.color = Colors::PieceGold; break;
+                case 'E': c.type = CellType::Jelly; c.color = Colors::PieceJelly; break;
+                case 'H': c.type = CellType::HeavyIron; c.color = Colors::PieceIron; break;
+                case 'Q': c.type = CellType::QuantumGhost; c.color = Colors::PieceI; break;
+                case 'X': c.type = CellType::Glitch; c.color = Colors::PieceZ; break;
+                case 'I': c.color = Colors::PieceI; break;
+                case 'J': c.color = Colors::PieceJ; break;
+                case 'L': c.color = Colors::PieceL; break;
+                case 'O': c.color = Colors::PieceO; break;
+                case 'S': c.color = Colors::PieceS; break;
+                case 'T': c.color = Colors::PieceT; break;
+                case 'Z': c.color = Colors::PieceZ; break;
+                default:  c.color = Colors::PieceI; break;
+            }
+            SetCell({ x, y }, c);
+        }
+    }
+}
+
 } // namespace TetroShift

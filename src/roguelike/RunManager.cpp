@@ -24,7 +24,7 @@ void RunManager::Reset() {
     m_inventory.Reset();
 }
 
-void RunManager::AddScore(int basePoints, const std::string& reason) {
+void RunManager::AddScore(int basePoints, const std::string& /*reason*/) {
     const int finalPoints = static_cast<int>(std::round(static_cast<float>(basePoints) * m_scoreMultiplier));
     m_score += finalPoints;
 }

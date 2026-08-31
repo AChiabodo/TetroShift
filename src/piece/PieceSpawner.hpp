@@ -23,6 +23,11 @@ public:
     [[nodiscard]] const std::optional<TetrominoType>& GetHoldPiece() const noexcept { return m_holdPiece; }
     [[nodiscard]] const std::optional<TetrominoType>& GetSecondHoldPiece() const noexcept { return m_secondHoldPiece; }
     [[nodiscard]] bool CanHold() const noexcept { return m_canHoldThisDrop; }
+    void SetHoldPiece(TetrominoType piece) noexcept {
+        if (piece == TetrominoType::None) m_holdPiece = std::nullopt;
+        else m_holdPiece = piece;
+    }
+    void SetCanHold(bool can) noexcept { m_canHoldThisDrop = can; }
 
     // Modifiers / Upgrades
     void SetDoubleHold(bool enabled) noexcept { m_doubleHoldUnlocked = enabled; }

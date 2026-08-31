@@ -32,6 +32,9 @@ public:
     void ApplyHorizontalMagneticPull(bool toRight);
     void ExplodeArea(const GridCoord& center, int radius, std::vector<GridCoord>& outDestroyed);
 
+    [[nodiscard]] std::vector<std::string> Serialize() const override;
+    void Deserialize(const std::vector<std::string>& data) override;
+
 private:
     [[nodiscard]] int CoordToIndex(const GridCoord& coord) const noexcept;
 

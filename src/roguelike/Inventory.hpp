@@ -68,7 +68,9 @@ public:
     }
 
     [[nodiscard]] int GetCoins() const noexcept { return m_coins; }
+    void SetCoins(int coins) noexcept { m_coins = coins; }
     [[nodiscard]] int GetRerolls() const noexcept { return m_rerollTokens; }
+    void SetRerolls(int r) noexcept { m_rerollTokens = r; }
     void AddRerolls(int count) noexcept { m_rerollTokens += count; }
     bool UseReroll() noexcept {
         if (m_rerollTokens > 0) {
@@ -76,6 +78,11 @@ public:
             return true;
         }
         return false;
+    }
+
+    void ClearCards() noexcept {
+        m_passiveCards.clear();
+        m_activeCards.clear();
     }
 
     [[nodiscard]] const std::vector<Card>& GetPassives() const noexcept { return m_passiveCards; }

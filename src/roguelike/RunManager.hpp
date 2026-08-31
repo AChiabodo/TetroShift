@@ -39,7 +39,15 @@ public:
     [[nodiscard]] const Inventory& GetInventory() const noexcept { return m_inventory; }
 
     void MultiplyScoreModifier(float factor) noexcept { m_scoreMultiplier *= factor; }
+    void SetScoreModifier(float factor) noexcept { m_scoreMultiplier = factor; }
     void SetBaseFallSpeedMultiplier(float factor) noexcept { m_speedMultiplier = factor; }
+    [[nodiscard]] float GetSpeedMultiplier() const noexcept { return m_speedMultiplier; }
+
+    void SetScore(int score) noexcept { m_score = score; }
+    void SetFloor(int floor) noexcept { m_floor = floor; }
+    void SetLinesTotal(int lines) noexcept { m_linesTotal = lines; }
+    void SetLinesThisFloor(int lines) noexcept { m_linesThisFloor = lines; }
+    void SetFloorLineTarget(int target) noexcept { m_floorLineTarget = target; }
 
     // Physical elastic global modifier
     void SetGlobalElasticity(float e) noexcept { m_globalElasticity = e; }
