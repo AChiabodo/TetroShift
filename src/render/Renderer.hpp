@@ -8,11 +8,16 @@
 #include "states/MenuTypes.hpp"
 #include <raylib.h>
 
+#include "FontManager.hpp"
+
 namespace TetroShift {
 
 class Renderer {
 public:
     Renderer() = default;
+
+    void SetFontManager(const FontManager* fm) noexcept { m_fontManager = fm; }
+    [[nodiscard]] const FontManager* GetFontManager() const noexcept { return m_fontManager; }
 
     void RenderGameHUD(
         const IGrid& grid,
@@ -46,6 +51,8 @@ private:
     void DrawSandboxToolbox(bool zeroGravity, float elasticity, int selectedPiece, int selectedMino, Rectangle bounds) const;
     void DrawControlsPanel(Rectangle bounds, GameMode gameMode = GameMode::Roguelike) const;
     void DrawMiniTetromino(TetrominoType type, Vector2 center, float cellSize) const;
+
+    const FontManager* m_fontManager = nullptr;
 };
 
 } // namespace TetroShift

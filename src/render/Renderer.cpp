@@ -14,10 +14,16 @@ void Renderer::DrawPanelFrame(Rectangle bounds, const char* title, Color borderC
     DrawRectangleLinesEx(bounds, 2.0f, borderColor);
 
     if (title) {
-        // Title banner
+        float titleW = (m_fontManager && m_fontManager->HasCustomFonts()) ?
+                       m_fontManager->MeasureTitle(title, 14.0f).x : static_cast<float>(MeasureText(title, 14));
         DrawRectangle(static_cast<int>(bounds.x + 8.0f), static_cast<int>(bounds.y - 10.0f),
-                      MeasureText(title, 14) + 12, 20, Colors::BgDark);
-        DrawText(title, static_cast<int>(bounds.x + 14.0f), static_cast<int>(bounds.y - 7.0f), 14, Colors::TextAccent);
+                      static_cast<int>(titleW) + 14, 20, Colors::BgDark);
+
+        if (m_fontManager && m_fontManager->HasCustomFonts()) {
+            m_fontManager->DrawTitle(title, { bounds.x + 14.0f, bounds.y - 7.0f }, 14.0f, Colors::TextAccent);
+        } else {
+            DrawText(title, static_cast<int>(bounds.x + 14.0f), static_cast<int>(bounds.y - 7.0f), 14, Colors::TextAccent);
+        }
     }
 }
 
