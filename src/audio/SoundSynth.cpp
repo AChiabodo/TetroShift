@@ -101,6 +101,10 @@ void SoundSynth::Initialize() {
         m_sndLineClear2 = GenerateTone(659.25f, 987.77f, 0.22f, 0.5f, 0); // E5 -> B5
         m_sndLineClear3 = GenerateTone(783.99f, 1174.66f, 0.25f, 0.55f, 0);// G5 -> D6
         m_sndTetris = GenerateTone(523.25f, 1318.51f, 0.45f, 0.65f, 1);    // Triumphant square sweep
+        m_sndTSpin = GenerateTone(659.25f, 1318.51f, 0.35f, 0.6f, 2);      // Chime chord chirp
+        m_sndBackToBack = GenerateTone(880.0f, 1760.0f, 0.28f, 0.65f, 1);  // High-energy laser chime
+        m_sndBombExplosion = GenerateNoise(0.45f, 0.75f);                  // Deep explosive rumble
+        m_sndSandSlide = GenerateNoise(0.08f, 0.18f);                      // Granular slide tick
         m_sndCardSelect = GenerateTone(440.0f, 1200.0f, 0.3f, 0.5f, 2);    // Magical chime
         m_sndGameOver = GenerateTone(320.0f, 60.0f, 0.7f, 0.6f, 1);        // Descending doom
         m_sndLevelUp = GenerateTone(392.0f, 1046.50f, 0.35f, 0.55f, 0);    // G4 -> C6 victory
@@ -124,6 +128,10 @@ void SoundSynth::Shutdown() {
     UnloadSound(m_sndLineClear2);
     UnloadSound(m_sndLineClear3);
     UnloadSound(m_sndTetris);
+    UnloadSound(m_sndTSpin);
+    UnloadSound(m_sndBackToBack);
+    UnloadSound(m_sndBombExplosion);
+    UnloadSound(m_sndSandSlide);
     UnloadSound(m_sndCardSelect);
     UnloadSound(m_sndGameOver);
     UnloadSound(m_sndLevelUp);
@@ -181,6 +189,30 @@ void SoundSynth::PlayLineClear(int linesCount) {
 
 void SoundSynth::PlayTetris() {
     if (m_initialized && !m_isMuted) PlaySound(m_sndTetris);
+}
+
+void SoundSynth::PlayTSpin() {
+    if (m_initialized && !m_isMuted) PlaySound(m_sndTSpin);
+}
+
+void SoundSynth::PlayBackToBack() {
+    if (m_initialized && !m_isMuted) PlaySound(m_sndBackToBack);
+}
+
+void SoundSynth::PlayBombExplosion() {
+    if (m_initialized && !m_isMuted) PlaySound(m_sndBombExplosion);
+}
+
+void SoundSynth::PlaySandSlide() {
+    if (m_initialized && !m_isMuted) PlaySound(m_sndSandSlide);
+}
+
+void SoundSynth::PlayCombo(int comboCount) {
+    if (!m_initialized || m_isMuted) return;
+    // Base frequency increases with combo level (pitch shift effect)
+    float pitch = 1.0f + static_cast<float>(std::min(10, comboCount)) * 0.08f;
+    SetSoundPitch(m_sndLineClear2, pitch);
+    PlaySound(m_sndLineClear2);
 }
 
 void SoundSynth::PlayCardSelect() {

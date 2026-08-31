@@ -125,10 +125,22 @@ void Renderer::DrawStatsPanel(const RunManager& runManager, Rectangle bounds) co
     DrawText(multBuffer, textX + 110, textY + 13, 18, Colors::TextGreen);
     textY += spacing + 12;
 
-    // Combo
+    // Combo & Back-to-Back Status
+    if (runManager.GetB2BStreak() > 0) {
+        Rectangle b2bBadge = { static_cast<float>(textX), static_cast<float>(textY), 95.0f, 24.0f };
+        DrawRectangleRounded(b2bBadge, 0.25f, 4, Fade(Colors::PieceGold, 0.25f));
+        DrawRectangleLinesEx(b2bBadge, 1.2f, Colors::PieceGold);
+        std::string b2bStr = "B2B x" + std::to_string(runManager.GetB2BStreak());
+        DrawText(b2bStr.c_str(), static_cast<int>(b2bBadge.x + 12.0f), static_cast<int>(b2bBadge.y + 5.0f), 12, Colors::TextGold);
+    }
+
     if (runManager.GetCombo() > 0) {
-        std::string comboStr = "COMBO x" + std::to_string(runManager.GetCombo()) + "!";
-        DrawText(comboStr.c_str(), textX, textY, 16, Colors::PieceBomb);
+        float comboX = (runManager.GetB2BStreak() > 0) ? (static_cast<float>(textX) + 102.0f) : static_cast<float>(textX);
+        Rectangle comboBadge = { comboX, static_cast<float>(textY), (runManager.GetB2BStreak() > 0) ? 80.0f : 180.0f, 24.0f };
+        DrawRectangleRounded(comboBadge, 0.25f, 4, Fade(Colors::PieceBomb, 0.25f));
+        DrawRectangleLinesEx(comboBadge, 1.2f, Colors::PieceBomb);
+        std::string comboStr = "🔥 x" + std::to_string(runManager.GetCombo());
+        DrawText(comboStr.c_str(), static_cast<int>(comboBadge.x + 10.0f), static_cast<int>(comboBadge.y + 5.0f), 12, Colors::PieceBomb);
     }
 }
 

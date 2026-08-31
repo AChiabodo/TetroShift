@@ -194,6 +194,9 @@ void PlayState::SpawnNextPiece(GameApp& app) {
 void PlayState::HandlePieceLock(GameApp& app) {
     app.GetSoundSynth().PlayLock();
 
+    // 1. Detect T-Spin status before committing cells to grid
+    TSpinType tspin = m_activePiece.CheckTSpin(*m_grid);
+
     const auto coords = m_activePiece.GetMinoGridCoords();
     const Color pieceColor = GetTetrominoColor(m_activePiece.GetType());
     const CellType minoType = m_activePiece.GetMinoType();
@@ -204,7 +207,8 @@ void PlayState::HandlePieceLock(GameApp& app) {
         cell.type = minoType;
         cell.color = (minoType == CellType::Gold) ? Colors::PieceGold :
                      (minoType == CellType::Bomb) ? Colors::PieceBomb :
-                     (minoType == CellType::Jelly) ? Colors::PieceJelly : pieceColor;
+                     (minoType == CellType::Jelly) ? Colors::PieceJelly :
+                     (minoType == CellType::Sand) ? Colors::PieceSand : pieceColor;
         cell.elasticity = m_runManager.GetGlobalElasticity();
         cell.isLocked = true;
         cell.flashTimer = 0.4f;
@@ -220,15 +224,31 @@ void PlayState::HandlePieceLock(GameApp& app) {
 
     // Check line clears
     LineClearResult clearResult = m_grid->CheckAndClearLines();
-    if (clearResult.linesCount > 0) {
-        // Line clear audio
-        app.GetSoundSynth().PlayLineClear(clearResult.linesCount);
+
+    if (clearResult.linesCount > 0 || tspin != TSpinType::None) {
+        bool isDifficult = (clearResult.isTetris || (tspin != TSpinType::None && clearResult.linesCount > 0));
+        bool isB2B = (isDifficult && m_runManager.GetB2BStreak() > 0);
+
+        // Audio feedback
+        if (tspin != TSpinType::None) {
+            app.GetSoundSynth().PlayTSpin();
+        } else if (isB2B) {
+            app.GetSoundSynth().PlayBackToBack();
+        } else if (!clearResult.bombExplosions.empty()) {
+            app.GetSoundSynth().PlayBombExplosion();
+        } else {
+            app.GetSoundSynth().PlayLineClear(clearResult.linesCount);
+        }
+
+        if (m_runManager.GetCombo() > 0) {
+            app.GetSoundSynth().PlayCombo(m_runManager.GetCombo());
+        }
 
         // Screen shake trauma
-        float trauma = (clearResult.linesCount >= 4) ? 0.55f : (0.15f * static_cast<float>(clearResult.linesCount));
+        float trauma = (clearResult.linesCount >= 4 || tspin != TSpinType::None) ? 0.60f : (0.15f * static_cast<float>(clearResult.linesCount));
         m_screenEffects.AddTrauma(trauma);
-        if (clearResult.linesCount >= 4) {
-            m_screenEffects.TriggerFlash(Colors::TextAccent, 0.4f);
+        if (clearResult.linesCount >= 4 || tspin != TSpinType::None) {
+            m_screenEffects.TriggerFlash((tspin != TSpinType::None) ? Colors::PieceT : Colors::TextAccent, 0.45f);
         }
 
         // Emit particles along cleared rows
@@ -249,15 +269,41 @@ void PlayState::HandlePieceLock(GameApp& app) {
         }
 
         // Floating score popup
-        std::string popupText = (clearResult.linesCount >= 4) ? "+800 TETRIS!" : ("+" + std::to_string(clearResult.linesCount * 100));
+        std::string popupText = "";
+        Color popupCol = Colors::TextAccent;
+
+        if (tspin == TSpinType::Standard) {
+            popupCol = Colors::PieceT;
+            if (clearResult.linesCount == 0) popupText = "T-SPIN!";
+            else if (clearResult.linesCount == 1) popupText = "T-SPIN SINGLE!";
+            else if (clearResult.linesCount == 2) popupText = "T-SPIN DOUBLE!";
+            else if (clearResult.linesCount == 3) popupText = "T-SPIN TRIPLE!";
+        } else if (tspin == TSpinType::Mini) {
+            popupCol = Colors::PieceT;
+            if (clearResult.linesCount == 0) popupText = "T-SPIN MINI";
+            else if (clearResult.linesCount == 1) popupText = "T-SPIN MINI SINGLE";
+            else if (clearResult.linesCount == 2) popupText = "T-SPIN MINI DOUBLE";
+        } else if (clearResult.linesCount >= 4) {
+            popupCol = GOLD;
+            popupText = "+800 TETRIS!";
+        } else if (clearResult.linesCount > 0) {
+            popupText = "+" + std::to_string(clearResult.linesCount * 100);
+        }
+
+        if (isB2B) {
+            popupText = "B2B " + popupText;
+            popupCol = Colors::PieceGold;
+        }
+
         if (clearResult.coinsGenerated > 0) {
             popupText += " (+$" + std::to_string(clearResult.coinsGenerated) + ")";
         }
+
         Vector2 centerPlayfield = { PLAYFIELD_X + gridWidthPx * 0.5f, PLAYFIELD_Y + CELL_SIZE * 6.0f };
-        m_particles.AddPopup(popupText, centerPlayfield, (clearResult.linesCount >= 4) ? GOLD : Colors::TextAccent, (clearResult.linesCount >= 4) ? 1.4f : 1.0f);
+        m_particles.AddPopup(popupText, centerPlayfield, popupCol, (clearResult.linesCount >= 4 || tspin != TSpinType::None) ? 1.5f : 1.0f);
 
         // Register with run manager
-        m_runManager.RegisterLineClear(clearResult.linesCount, clearResult.linesCount >= 4, ctx);
+        m_runManager.RegisterLineClear(clearResult.linesCount, clearResult.linesCount >= 4, ctx, tspin);
 
         // Check if floor cleared and draft pending
         if (m_runManager.IsDraftPending()) {
@@ -267,6 +313,8 @@ void PlayState::HandlePieceLock(GameApp& app) {
             app.GetStateManager().PushOverlay(app, std::make_unique<CardDraftState>(m_runManager.GetFloor()));
             return;
         }
+    } else {
+        m_runManager.RegisterLineClear(0, false, ctx, TSpinType::None);
     }
 
     // Spawn next piece
