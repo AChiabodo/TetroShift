@@ -45,7 +45,7 @@ private:
     void HandleInputQuitConfirm(GameApp& app);
 
     // Data initialization helpers
-    void InitializeMockData();
+    void InitializeRealData(GameApp& app);
 
     // State Variables
     MenuView m_currentView = MenuView::Main;

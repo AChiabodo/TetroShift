@@ -8,8 +8,40 @@
 
 namespace TetroShift {
 
-PlayState::PlayState() {
+PlayState::PlayState(int activeSlot, std::optional<SavedRunState> restoredRun)
+    : m_activeSlot(activeSlot), m_restoredRun(std::move(restoredRun)) {
     m_grid = std::make_unique<OrthogonalGrid>(GRID_WIDTH, GRID_HEIGHT, GRID_BUFFER_HEIGHT);
+}
+
+SavedRunState PlayState::ExportCurrentRunState() const {
+    SavedRunState state;
+    state.slotId = m_activeSlot;
+    state.state = SaveSlotState::ActiveRun;
+    state.runMode = "ROGUELIKE RUN // SECTOR 0" + std::to_string(m_runManager.GetFloor());
+    state.floor = m_runManager.GetFloor();
+    state.score = m_runManager.GetScore();
+    state.linesTotal = m_runManager.GetLinesTotal();
+    state.linesThisFloor = m_runManager.GetLinesThisFloor();
+    state.floorLineTarget = m_runManager.GetFloorLineTarget();
+    state.coins = m_runManager.GetInventory().GetCoins();
+    state.rerollTokens = m_runManager.GetInventory().GetRerolls();
+    state.scoreMultiplier = m_runManager.GetScoreMultiplier();
+    state.speedMultiplier = m_runManager.GetSpeedMultiplier();
+    state.globalElasticity = m_runManager.GetGlobalElasticity();
+    auto holdOpt = m_spawner.GetHoldPiece();
+    state.holdPiece = holdOpt.has_value() ? holdOpt.value() : TetrominoType::None;
+    state.canHold = m_spawner.CanHold();
+    state.rngState = 1337;
+
+    for (const auto& card : m_runManager.GetInventory().GetPassives()) {
+        state.cardIds.push_back(card.id);
+    }
+    for (const auto& card : m_runManager.GetInventory().GetActives()) {
+        state.cardIds.push_back(card.id);
+    }
+
+    state.gridCells = m_grid->Serialize();
+    return state;
 }
 
 void PlayState::OnEnter(GameApp& app) {
@@ -24,6 +56,29 @@ void PlayState::OnEnter(GameApp& app) {
     m_heldDirection = 0;
     m_showDebugPhysics = false;
     m_isPaused = false;
+
+    // Check if we are restoring a suspended saved run!
+    if (m_restoredRun.has_value()) {
+        const auto& saved = *m_restoredRun;
+        m_runManager.SetScore(saved.score);
+        m_runManager.SetFloor(saved.floor);
+        m_runManager.SetLinesTotal(saved.linesTotal);
+        m_runManager.SetLinesThisFloor(saved.linesThisFloor);
+        m_runManager.SetFloorLineTarget(saved.floorLineTarget);
+        m_runManager.SetScoreModifier(saved.scoreMultiplier);
+        m_runManager.SetBaseFallSpeedMultiplier(saved.speedMultiplier);
+        m_runManager.SetGlobalElasticity(saved.globalElasticity);
+
+        m_runManager.GetInventory().SetCoins(saved.coins);
+        m_runManager.GetInventory().SetRerolls(saved.rerollTokens);
+
+        // Restore grid
+        m_grid->Deserialize(saved.gridCells);
+
+        // Restore Spawner
+        m_spawner.SetHoldPiece(saved.holdPiece);
+        m_spawner.SetCanHold(saved.canHold);
+    }
 
     // Subscribe to card acquisition
     app.GetEventBus().Subscribe<EventCardAcquired>([this, &app](const EventCardAcquired& e) {
@@ -44,6 +99,17 @@ void PlayState::OnEnter(GameApp& app) {
             }
         }
     });
+
+    // If restoring saved cards, add them after subscription
+    if (m_restoredRun.has_value()) {
+        for (const auto& cardId : m_restoredRun->cardIds) {
+            const Card* card = app.GetCardDatabase().FindCardById(cardId);
+            if (card) {
+                CardContext ctx{ &m_runManager, &m_activePiece, m_grid.get(), &m_spawner, &app.GetEventBus() };
+                m_runManager.GetInventory().AddCard(*card, ctx);
+            }
+        }
+    }
 
     // Start floor soundtrack (respecting fixed track preference)
     if (app.GetMusicManager().GetFixedTrackIndex() > 0) {
@@ -85,6 +151,23 @@ void PlayState::SpawnNextPiece(GameApp& app) {
             // Game Over!
             app.GetSoundSynth().PlayGameOver();
             m_screenEffects.TriggerFlash(RED, 0.6f);
+
+            // Persist run results to career profile & high scores
+            app.GetSaveManager().AwardRunResults(
+                m_runManager.GetScore(),
+                m_runManager.GetFloor(),
+                m_runManager.GetLinesTotal(),
+                false
+            );
+            app.GetSaveManager().DeleteRunSlot(m_activeSlot);
+
+            HighScoreEntry entry;
+            entry.pilotName = app.GetSaveManager().GetProfile().pilotCallsign;
+            entry.score = m_runManager.GetScore();
+            entry.floorReached = m_runManager.GetFloor();
+            entry.linesCleared = m_runManager.GetLinesTotal();
+            app.GetSaveManager().AddHighScoreEntry(entry);
+
             app.GetStateManager().SetState(app, std::make_unique<GameOverState>(
                 m_runManager.GetScore(),
                 m_runManager.GetFloor(),
@@ -324,7 +407,7 @@ void PlayState::HandleInput(GameApp& app) {
     }
 
     if (m_isPaused) {
-        const int numPauseOptions = 4;
+        const int numPauseOptions = 5;
         if (IsKeyPressed(KEY_UP) || IsKeyPressed(KEY_W)) {
             m_pauseSelectedOption = (m_pauseSelectedOption - 1 + numPauseOptions) % numPauseOptions;
             app.GetSoundSynth().PlayMenuHover();
@@ -340,19 +423,25 @@ void PlayState::HandleInput(GameApp& app) {
                     m_isPaused = false;
                     app.GetSoundSynth().PlayCardSelect();
                     break;
-                case 1: // Restart Run
+                case 1: // Save & Suspend
+                    app.GetSaveManager().SaveRunSlot(m_activeSlot, ExportCurrentRunState());
+                    app.GetSoundSynth().PlayMenuBack();
+                    app.GetStateManager().SetState(app, std::make_unique<TitleState>());
+                    return;
+                case 2: // Restart Run
                     m_isPaused = false;
                     app.GetSoundSynth().PlayCardSelect();
+                    m_restoredRun = std::nullopt;
                     OnEnter(app);
                     break;
-                case 2: // Toggle Sound Mute
+                case 3: // Toggle Sound Mute
                     app.GetSoundSynth().SetMuted(!app.GetSoundSynth().IsMuted());
                     app.GetSoundSynth().PlayMenuToggle();
                     break;
-                case 3: // Return to Main Menu
+                case 4: // Return to Main Menu (Abandon)
                     app.GetSoundSynth().PlayMenuBack();
                     app.GetStateManager().SetState(app, std::make_unique<TitleState>());
-                    break;
+                    return;
             }
         }
         return;
@@ -410,7 +499,7 @@ void PlayState::RenderPauseMenu(GameApp& app) {
     DrawRectangle(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT, Fade(BLACK, 0.75f));
 
     // Pause Modal Card
-    Rectangle modal = { WINDOW_WIDTH * 0.5f - 220.0f, WINDOW_HEIGHT * 0.5f - 220.0f, 440.0f, 440.0f };
+    Rectangle modal = { WINDOW_WIDTH * 0.5f - 230.0f, WINDOW_HEIGHT * 0.5f - 240.0f, 460.0f, 480.0f };
     DrawRectangleRounded(modal, 0.08f, 6, Colors::BgDark);
     DrawRectangleLinesEx(modal, 2.0f, Colors::PieceI);
 
@@ -420,17 +509,18 @@ void PlayState::RenderPauseMenu(GameApp& app) {
     DrawText("TACTICAL PAUSE // SUSPENDED", static_cast<int>(headerRect.x + 20.0f), static_cast<int>(headerRect.y + 14.0f), 16, Colors::TextWhite);
 
     // Mini Stats Capsule
-    Rectangle statsRect = { modal.x + 20.0f, modal.y + 56.0f, modal.width - 40.0f, 40.0f };
+    Rectangle statsRect = { modal.x + 20.0f, modal.y + 54.0f, modal.width - 40.0f, 38.0f };
     DrawRectangleRounded(statsRect, 0.15f, 4, Colors::BgPanel);
     DrawRectangleLinesEx(statsRect, 1.0f, Colors::BgPanelBorder);
 
-    std::string statsStr = "FL: " + std::to_string(m_runManager.GetFloor()) +
+    std::string statsStr = "SLOT #" + std::to_string(m_activeSlot) +
+                           "  |  FL: " + std::to_string(m_runManager.GetFloor()) +
                            "  |  SCORE: " + std::to_string(m_runManager.GetScore()) +
                            "  |  LINES: " + std::to_string(m_runManager.GetLinesTotal()) +
                            "  |  $" + std::to_string(m_runManager.GetInventory().GetCoins());
-    DrawText(statsStr.c_str(), static_cast<int>(statsRect.x + 14.0f), static_cast<int>(statsRect.y + 13.0f), 12, Colors::TextAccent);
+    DrawText(statsStr.c_str(), static_cast<int>(statsRect.x + 14.0f), static_cast<int>(statsRect.y + 12.0f), 12, Colors::TextAccent);
 
-    // 4 Pause Menu Buttons
+    // 5 Pause Menu Buttons
     struct PauseBtn {
         const char* label;
         const char* badge;
@@ -440,16 +530,17 @@ void PlayState::RenderPauseMenu(GameApp& app) {
     std::string audioBadge = app.GetSoundSynth().IsMuted() ? "MUTED" : "ACTIVE";
     const PauseBtn btns[] = {
         { "RESUME MISSION", "[ESC/P]", Colors::TextGreen },
+        { "SAVE & SUSPEND RUN", "SAVE & MENU", Colors::PieceI },
         { "RESTART RUN", "RETRY", Colors::PieceGold },
         { app.GetSoundSynth().IsMuted() ? "AUDIO: UNMUTE" : "AUDIO: MUTE", audioBadge.c_str(), Colors::PieceT },
         { "ABANDON RUN & MENU", "QUIT", Colors::PieceBomb }
     };
 
-    float startY = modal.y + 112.0f;
-    float btnH = 50.0f;
-    float spacing = 12.0f;
+    float startY = modal.y + 104.0f;
+    float btnH = 46.0f;
+    float spacing = 10.0f;
 
-    for (int i = 0; i < 4; ++i) {
+    for (int i = 0; i < 5; ++i) {
         Rectangle bRect = { modal.x + 20.0f, startY + static_cast<float>(i) * (btnH + spacing), modal.width - 40.0f, btnH };
         bool isHovered = CheckCollisionPointRec(mousePos, bRect);
         bool isSelected = (m_pauseSelectedOption == i);
@@ -466,15 +557,21 @@ void PlayState::RenderPauseMenu(GameApp& app) {
                     app.GetSoundSynth().PlayCardSelect();
                     break;
                 case 1:
+                    app.GetSaveManager().SaveRunSlot(m_activeSlot, ExportCurrentRunState());
+                    app.GetSoundSynth().PlayMenuBack();
+                    app.GetStateManager().SetState(app, std::make_unique<TitleState>());
+                    return;
+                case 2:
                     m_isPaused = false;
                     app.GetSoundSynth().PlayCardSelect();
+                    m_restoredRun = std::nullopt;
                     OnEnter(app);
                     break;
-                case 2:
+                case 3:
                     app.GetSoundSynth().SetMuted(!app.GetSoundSynth().IsMuted());
                     app.GetSoundSynth().PlayMenuToggle();
                     break;
-                case 3:
+                case 4:
                     app.GetSoundSynth().PlayMenuBack();
                     app.GetStateManager().SetState(app, std::make_unique<TitleState>());
                     return;

@@ -14,91 +14,50 @@ void TitleState::OnEnter(GameApp& app) {
     m_activeTab = 0;
     m_selectedThemeIndex = 0;
 
-    InitializeMockData();
+    InitializeRealData(app);
     app.GetSoundSynth().SetMasterVolume(m_settings.masterVolume);
     app.GetMusicManager().SetVolume(m_settings.musicVolume);
+    app.GetMusicManager().SetFixedTrackIndex(m_settings.fixedSoundtrack);
     app.GetMusicManager().PlayTrack(TrackId::MenuTheme, true);
 }
 
 void TitleState::OnExit(GameApp& /*app*/) {}
 
-void TitleState::InitializeMockData() {
-    // 1. Profile Data
-    m_profile.pilotName = "CYBER_PILOT_01";
-    m_profile.pilotCallsign = "MORPHO-PRIME";
-    m_profile.rankTitle = "MASTER ARCHITECT III";
-    m_profile.level = 14;
-    m_profile.currentExp = 3850;
-    m_profile.maxExp = 5000;
-    m_profile.totalRuns = 42;
-    m_profile.totalVictories = 18;
-    m_profile.totalLinesCleared = 2450;
-    m_profile.highestScore = 184200;
-    m_profile.highestFloor = 12;
-    m_profile.energyCredits = 1450;
+void TitleState::InitializeRealData(GameApp& app) {
+    // Default catalog templates if empty
+    if (m_shopItems.empty()) {
+        m_shopItems = {
+            { "SHOP_JELLY_V2", "SUPER JELLY COATING", ShopCategory::Relic, "RELIC // PASSIVE", "+30% spring bounce and self-stabilizing lock", 350, false, false, Colors::PieceJelly },
+            { "SHOP_START_COINS", "MIDAS CATALYST", ShopCategory::Booster, "BOOSTER // ACTIVE", "Start every new run with +100 Energy Credits", 500, false, false, Colors::PieceGold },
+            { "SHOP_SKIN_CYBER", "CYBERPUNK NEON SKIN", ShopCategory::Skin, "COSMETIC // THEME", "High-glow chromatic aberration block theme", 400, true, true, Colors::PieceI },
+            { "SHOP_SKIN_TITAN", "TITAN METALLIC SKIN", ShopCategory::Skin, "COSMETIC // THEME", "Heavy brushed titanium aesthetics with sparks", 650, false, false, Colors::PieceIron },
+            { "SHOP_REROLL_PACK", "QUANTUM REROLL MATRIX", ShopCategory::Booster, "BOOSTER // PERK", "+2 Draft card reroll tokens per run", 450, false, false, Colors::PieceT },
+            { "SHOP_CRT_PULSE", "SYNTHWAVE GRID THEME", ShopCategory::MatrixTheme, "COSMETIC // MATRIX", "Undulating retro-futuristic horizon matrix grid", 300, true, false, Colors::PieceZ }
+        };
+    }
 
-    // 2. Save Slots
-    m_saveSlots.clear();
-    SaveSlotData slot1;
-    slot1.slotId = 1;
-    slot1.state = SaveSlotState::ActiveRun;
-    slot1.runMode = "ROGUELIKE RUN // SECTOR 04";
-    slot1.currentFloor = 4;
-    slot1.currentScore = 48200;
-    slot1.currentLines = 36;
-    slot1.energyCoins = 180;
-    slot1.timestamp = "2026-08-30 22:15";
-    slot1.relicCards = { "JELLY BODY", "MIDAS TOUCH", "FISSION" };
-    slot1.accentColor = Colors::PieceI;
-    m_saveSlots.push_back(slot1);
+    if (m_customThemes.empty()) {
+        m_customThemes = {
+            { "THEME_NEON", "CYBER NEON (DEFAULT)", "High-contrast electric neon with cyan and violet accents", Colors::PieceI, Colors::PieceT, TetrominoType::T, true, true },
+            { "THEME_TITAN", "TITAN INDUSTRIAL", "Heavy metallic frames with intense industrial orange glow", Colors::PieceIron, Colors::PieceL, TetrominoType::I, false, false },
+            { "THEME_JELLY", "GELATIN LUMINESCENCE", "Soft aquamarine translucent blocks with harmonic wobble", Colors::PieceJelly, Colors::PieceS, TetrominoType::S, true, false },
+            { "THEME_RETRO", "ARCADE SYNTH 1984", "Classic vibrant primaries with retro crt phosphor edge", Colors::PieceO, Colors::PieceBomb, TetrominoType::L, false, false }
+        };
+    }
 
-    SaveSlotData slot2;
-    slot2.slotId = 2;
-    slot2.state = SaveSlotState::Empty;
-    slot2.runMode = "EMPTY MEMORY MATRIX";
-    slot2.timestamp = "--/--/----";
-    slot2.accentColor = Colors::TextDim;
-    m_saveSlots.push_back(slot2);
+    std::string equippedTheme = "THEME_NEON";
+    app.GetSaveManager().LoadProfile(m_profile, m_settings, m_shopItems, equippedTheme);
+    m_highScores = app.GetSaveManager().LoadHighScores();
+    m_saveSlots = app.GetSaveManager().GetSaveSlotHeaders();
 
-    SaveSlotData slot3;
-    slot3.slotId = 3;
-    slot3.state = SaveSlotState::CompletedRun;
-    slot3.runMode = "ENDLESS MATRIX // ARCHIVE";
-    slot3.currentFloor = 10;
-    slot3.currentScore = 142500;
-    slot3.currentLines = 112;
-    slot3.energyCoins = 520;
-    slot3.timestamp = "2026-08-28 19:40";
-    slot3.relicCards = { "HEAVY IRON", "MAGNET LEFT" };
-    slot3.accentColor = Colors::TextGold;
-    m_saveSlots.push_back(slot3);
-
-    // 3. High Scores
-    m_highScores = {
-        { 1, "CYBER_PILOT_01", 184200, 12, 148, "2026-08-29", "GRAND MASTER", GOLD },
-        { 2, "NEON_VIPER", 152800, 10, 120, "2026-08-28", "WARP MASTER", LIGHTGRAY },
-        { 3, "SYNTH_ZERO", 128400, 8, 96, "2026-08-26", "ELITE RUNNER", Colors::PieceL },
-        { 4, "MATRIX_GHOST", 98200, 7, 82, "2026-08-25", "VETERAN", Colors::PieceT },
-        { 5, "QUANTUM_KID", 64500, 5, 54, "2026-08-22", "INITIATE", Colors::PieceS }
-    };
-
-    // 4. Shop Items (Black Market)
-    m_shopItems = {
-        { "SHOP_JELLY_V2", "SUPER JELLY COATING", ShopCategory::Relic, "RELIC // PASSIVE", "+30% spring bounce and self-stabilizing lock", 350, false, false, Colors::PieceJelly },
-        { "SHOP_START_COINS", "MIDAS CATALYST", ShopCategory::Booster, "BOOSTER // ACTIVE", "Start every new run with +100 Energy Credits", 500, false, false, Colors::PieceGold },
-        { "SHOP_SKIN_CYBER", "CYBERPUNK NEON SKIN", ShopCategory::Skin, "COSMETIC // THEME", "High-glow chromatic aberration block theme", 400, true, true, Colors::PieceI },
-        { "SHOP_SKIN_TITAN", "TITAN METALLIC SKIN", ShopCategory::Skin, "COSMETIC // THEME", "Heavy brushed titanium aesthetics with sparks", 650, false, false, Colors::PieceIron },
-        { "SHOP_REROLL_PACK", "QUANTUM REROLL MATRIX", ShopCategory::Booster, "BOOSTER // PERK", "+2 Draft card reroll tokens per run", 450, false, false, Colors::PieceT },
-        { "SHOP_CRT_PULSE", "SYNTHWAVE GRID THEME", ShopCategory::MatrixTheme, "COSMETIC // MATRIX", "Undulating retro-futuristic horizon matrix grid", 300, true, false, Colors::PieceZ }
-    };
-
-    // 5. Customization Themes
-    m_customThemes = {
-        { "THEME_NEON", "CYBER NEON (DEFAULT)", "High-contrast electric neon with cyan and violet accents", Colors::PieceI, Colors::PieceT, TetrominoType::T, true, true },
-        { "THEME_TITAN", "TITAN INDUSTRIAL", "Heavy metallic frames with intense industrial orange glow", Colors::PieceIron, Colors::PieceL, TetrominoType::I, false, false },
-        { "THEME_JELLY", "GELATIN LUMINESCENCE", "Soft aquamarine translucent blocks with harmonic wobble", Colors::PieceJelly, Colors::PieceS, TetrominoType::S, true, false },
-        { "THEME_RETRO", "ARCADE SYNTH 1984", "Classic vibrant primaries with retro crt phosphor edge", Colors::PieceO, Colors::PieceBomb, TetrominoType::L, false, false }
-    };
+    for (size_t i = 0; i < m_customThemes.size(); ++i) {
+        if (m_customThemes[i].id == equippedTheme) {
+            m_customThemes[i].isEquipped = true;
+            m_selectedThemeIndex = static_cast<int>(i);
+        } else {
+            m_customThemes[i].isEquipped = false;
+        }
+    }
 }
 
 void TitleState::SetView(MenuView view, GameApp& app) {
@@ -178,8 +137,8 @@ void TitleState::HandleInputPlaySelect(GameApp& app) {
 
     if (IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_SPACE)) {
         app.GetSoundSynth().PlayCardSelect();
-        // Start run in PlayState
-        app.GetStateManager().SetState(app, std::make_unique<PlayState>());
+        // Start run on Slot 1
+        app.GetStateManager().SetState(app, std::make_unique<PlayState>(1, std::nullopt));
     }
 }
 
@@ -196,10 +155,24 @@ void TitleState::HandleInputProfileSaves(GameApp& app) {
         app.GetSoundSynth().PlayMenuHover();
     }
 
+    // Wipe Slot with DEL or X
+    if (IsKeyPressed(KEY_DELETE) || IsKeyPressed(KEY_X)) {
+        int slotId = m_selectedOption + 1;
+        app.GetSaveManager().DeleteRunSlot(slotId);
+        m_saveSlots = app.GetSaveManager().GetSaveSlotHeaders();
+        app.GetSoundSynth().PlayMenuBack();
+        return;
+    }
+
     if (IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_SPACE)) {
         app.GetSoundSynth().PlayCardSelect();
-        // Launch or resume session
-        app.GetStateManager().SetState(app, std::make_unique<PlayState>());
+        int slotId = m_selectedOption + 1;
+        SavedRunState saved;
+        if (app.GetSaveManager().LoadRunSlot(slotId, saved)) {
+            app.GetStateManager().SetState(app, std::make_unique<PlayState>(slotId, saved));
+        } else {
+            app.GetStateManager().SetState(app, std::make_unique<PlayState>(slotId, std::nullopt));
+        }
     }
 }
 
@@ -235,12 +208,19 @@ void TitleState::HandleInputShop(GameApp& app) {
                     item.isUnlocked = true;
                     item.isEquipped = true;
                     app.GetSoundSynth().PlayLevelUp();
+
+                    std::string eqTheme = "THEME_NEON";
+                    for (const auto& t : m_customThemes) if (t.isEquipped) eqTheme = t.id;
+                    app.GetSaveManager().SaveProfile(m_profile, m_settings, m_shopItems, eqTheme);
                 } else {
                     app.GetSoundSynth().PlayMenuBack();
                 }
             } else {
                 item.isEquipped = !item.isEquipped;
                 app.GetSoundSynth().PlayMenuToggle();
+                std::string eqTheme = "THEME_NEON";
+                for (const auto& t : m_customThemes) if (t.isEquipped) eqTheme = t.id;
+                app.GetSaveManager().SaveProfile(m_profile, m_settings, m_shopItems, eqTheme);
             }
         }
     }
@@ -276,6 +256,8 @@ void TitleState::HandleInputCustomization(GameApp& app) {
                 m_customThemes[i].isEquipped = (static_cast<int>(i) == m_selectedOption);
             }
             app.GetSoundSynth().PlayCardSelect();
+            std::string eqTheme = m_customThemes[m_selectedOption].id;
+            app.GetSaveManager().SaveProfile(m_profile, m_settings, m_shopItems, eqTheme);
         }
     } else {
         // Tab 1: Soundtrack Jukebox & Fixed Track Selection
@@ -312,6 +294,10 @@ void TitleState::HandleInputCustomization(GameApp& app) {
                 }
                 app.GetMusicManager().SetFixedTrackIndex(m_settings.fixedSoundtrack);
                 app.GetMusicManager().PlayTrack(catalog[m_selectedJukeboxIndex].id, true);
+
+                std::string eqTheme = "THEME_NEON";
+                for (const auto& t : m_customThemes) if (t.isEquipped) eqTheme = t.id;
+                app.GetSaveManager().SaveProfile(m_profile, m_settings, m_shopItems, eqTheme);
             }
         }
     }
@@ -685,14 +671,20 @@ void TitleState::RenderProfileSaves(GameApp& app) {
 
         if (isHovered && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
             app.GetSoundSynth().PlayCardSelect();
-            app.GetStateManager().SetState(app, std::make_unique<PlayState>());
+            int slotId = static_cast<int>(i) + 1;
+            SavedRunState saved;
+            if (app.GetSaveManager().LoadRunSlot(slotId, saved)) {
+                app.GetStateManager().SetState(app, std::make_unique<PlayState>(slotId, saved));
+            } else {
+                app.GetStateManager().SetState(app, std::make_unique<PlayState>(slotId, std::nullopt));
+            }
             return;
         }
 
         m_menuRenderer.DrawSaveSlotCard(sRect, m_saveSlots[i], isSelected, isHovered);
     }
 
-    m_menuRenderer.DrawFooterHints({ "[ESC] Return to Main Menu", "[UP / DOWN] Select Slot", "[ENTER / CLICK] Resume / Create Mission" });
+    m_menuRenderer.DrawFooterHints({ "[ESC] Return to Main Menu", "[UP / DOWN] Select Slot", "[ENTER / CLICK] Resume / Start Mission", "[DEL / X] Wipe Slot" });
 }
 
 void TitleState::RenderHighScores(GameApp& /*app*/) {
@@ -765,12 +757,20 @@ void TitleState::RenderShop(GameApp& app) {
                     item.isUnlocked = true;
                     item.isEquipped = true;
                     app.GetSoundSynth().PlayLevelUp();
+
+                    std::string eqTheme = "THEME_NEON";
+                    for (const auto& t : m_customThemes) if (t.isEquipped) eqTheme = t.id;
+                    app.GetSaveManager().SaveProfile(m_profile, m_settings, m_shopItems, eqTheme);
                 } else {
                     app.GetSoundSynth().PlayMenuBack();
                 }
             } else {
                 item.isEquipped = !item.isEquipped;
                 app.GetSoundSynth().PlayMenuToggle();
+
+                std::string eqTheme = "THEME_NEON";
+                for (const auto& t : m_customThemes) if (t.isEquipped) eqTheme = t.id;
+                app.GetSaveManager().SaveProfile(m_profile, m_settings, m_shopItems, eqTheme);
             }
         }
 
@@ -822,6 +822,8 @@ void TitleState::RenderCustomization(GameApp& app) {
                     m_customThemes[j].isEquipped = (j == i);
                 }
                 app.GetSoundSynth().PlayCardSelect();
+                std::string eqTheme = m_customThemes[i].id;
+                app.GetSaveManager().SaveProfile(m_profile, m_settings, m_shopItems, eqTheme);
             }
 
             Color border = isSelected ? m_customThemes[i].primaryColor : (isHovered ? WHITE : Colors::BgPanelBorder);
@@ -1101,6 +1103,12 @@ void TitleState::RenderSettings(GameApp& app) {
     DrawText("[LEFT / RIGHT / DOWN] Move & Soft Drop   |   [UP / X] Rotate CW   |   [Z] Rotate CCW", static_cast<int>(kbBox.x + 16.0f), static_cast<int>(kbBox.y + 36.0f), 12, Colors::TextWhite);
     DrawText("[SPACE] Hard Drop   |   [C / SHIFT] Hold Piece   |   [1 / 2] Trigger Active Relic Cards", static_cast<int>(kbBox.x + 16.0f), static_cast<int>(kbBox.y + 58.0f), 12, Colors::TextWhite);
     DrawText("[P / ESC] Pause Game   |   [F1] Toggle Verlet Springs Debug   |   [F2] Card Draft Test", static_cast<int>(kbBox.x + 16.0f), static_cast<int>(kbBox.y + 80.0f), 12, Colors::TextDim);
+
+    if (IsMouseButtonReleased(MOUSE_BUTTON_LEFT)) {
+        std::string eqTheme = "THEME_NEON";
+        for (const auto& t : m_customThemes) if (t.isEquipped) eqTheme = t.id;
+        app.GetSaveManager().SaveProfile(m_profile, m_settings, m_shopItems, eqTheme);
+    }
 
     m_menuRenderer.DrawFooterHints({ "[ESC] Return to Main Menu", "[UP / DOWN] Select Setting", "[LEFT / RIGHT / CLICK] Adjust Setting" });
 }

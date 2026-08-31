@@ -8,13 +8,15 @@
 #include "render/ScreenEffects.hpp"
 #include "render/Renderer.hpp"
 #include "render/MenuRenderer.hpp"
+#include "states/MenuTypes.hpp"
 #include <memory>
+#include <optional>
 
 namespace TetroShift {
 
 class PlayState : public IGameState {
 public:
-    PlayState();
+    explicit PlayState(int activeSlot = 1, std::optional<SavedRunState> restoredRun = std::nullopt);
     ~PlayState() override = default;
 
     void OnEnter(GameApp& app) override;
@@ -32,11 +34,17 @@ public:
     [[nodiscard]] RunManager& GetRunManager() noexcept { return m_runManager; }
     [[nodiscard]] ParticleSystem& GetParticles() noexcept { return m_particles; }
     [[nodiscard]] ScreenEffects& GetScreenEffects() noexcept { return m_screenEffects; }
+    [[nodiscard]] int GetActiveSlot() const noexcept { return m_activeSlot; }
+
+    [[nodiscard]] SavedRunState ExportCurrentRunState() const;
 
 private:
     void HandleMovementInput(GameApp& app, float dt);
     void TriggerInstantLineClear(GameApp& app);
     void RenderPauseMenu(GameApp& app);
+
+    int m_activeSlot = 1;
+    std::optional<SavedRunState> m_restoredRun;
 
     std::unique_ptr<IGrid> m_grid;
     ActivePiece m_activePiece;
