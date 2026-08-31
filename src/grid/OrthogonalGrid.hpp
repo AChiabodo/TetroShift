@@ -32,6 +32,11 @@ public:
     void ApplyHorizontalMagneticPull(bool toRight);
     void ExplodeArea(const GridCoord& center, int radius, std::vector<GridCoord>& outDestroyed);
 
+    void PushGarbageRow(int holeCol, CellType type = CellType::Solid, Color color = DARKGRAY) override;
+    void VaporizeTopRows(int count) override;
+    void VaporizeBottomRow() override;
+    void CollapseFloatingCells() override;
+
     [[nodiscard]] std::vector<std::string> Serialize() const override;
     void Deserialize(const std::vector<std::string>& data) override;
 

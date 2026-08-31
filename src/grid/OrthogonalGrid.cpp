@@ -277,6 +277,79 @@ void OrthogonalGrid::Render(Vector2 gridOrigin, float cellSize, bool showDebugHi
     DrawRectangleLinesEx({ gridOrigin.x - 2.0f, gridOrigin.y - 2.0f, gridPxWidth + 4.0f, gridPxHeight + 4.0f }, 2.0f, Colors::BgPanelBorder);
 }
 
+void OrthogonalGrid::PushGarbageRow(int holeCol, CellType type, Color color) {
+    // Shift rows up by 1 (row 0 is pushed into the void)
+    for (int y = 0; y < m_height - 1; ++y) {
+        for (int x = 0; x < m_width; ++x) {
+            SetCell({ x, y }, GetCell({ x, y + 1 }));
+        }
+    }
+
+    // Insert new garbage row at the bottom
+    for (int x = 0; x < m_width; ++x) {
+        if (x == holeCol) {
+            SetCell({ x, m_height - 1 }, Cell{});
+        } else {
+            Cell c;
+            c.type = type;
+            c.color = color;
+            c.isLocked = true;
+            c.squishOffset = 0.0f;
+            SetCell({ x, m_height - 1 }, c);
+        }
+    }
+}
+
+void OrthogonalGrid::VaporizeTopRows(int count) {
+    for (int y = 0; y < count && y < m_height; ++y) {
+        for (int x = 0; x < m_width; ++x) {
+            SetCell({ x, y }, Cell{});
+        }
+    }
+}
+
+void OrthogonalGrid::VaporizeBottomRow() {
+    // Clear bottom row
+    for (int x = 0; x < m_width; ++x) {
+        SetCell({ x, m_height - 1 }, Cell{});
+    }
+
+    // Shift all rows down by 1
+    for (int y = m_height - 1; y > 0; --y) {
+        for (int x = 0; x < m_width; ++x) {
+            SetCell({ x, y }, GetCell({ x, y - 1 }));
+        }
+    }
+
+    // Clear top row
+    for (int x = 0; x < m_width; ++x) {
+        SetCell({ x, 0 }, Cell{});
+    }
+}
+
+void OrthogonalGrid::CollapseFloatingCells() {
+    for (int x = 0; x < m_width; ++x) {
+        std::vector<Cell> solids;
+        for (int y = m_height - 1; y >= 0; --y) {
+            const Cell& c = GetCell({ x, y });
+            if (c.IsSolid()) {
+                solids.push_back(c);
+            }
+        }
+
+        // Place them down from the bottom
+        int writeY = m_height - 1;
+        for (const auto& c : solids) {
+            SetCell({ x, writeY }, c);
+            writeY--;
+        }
+        while (writeY >= 0) {
+            SetCell({ x, writeY }, Cell{});
+            writeY--;
+        }
+    }
+}
+
 std::vector<std::string> OrthogonalGrid::Serialize() const {
     std::vector<std::string> rows;
     rows.reserve(m_height);

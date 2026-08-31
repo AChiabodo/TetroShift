@@ -41,6 +41,11 @@ public:
     [[nodiscard]] virtual Vector2 CoordToWorld(const GridCoord& coord, Vector2 gridOrigin, float cellSize) const noexcept = 0;
     virtual void Render(Vector2 gridOrigin, float cellSize, bool showDebugHitbox = false) const = 0;
 
+    virtual void PushGarbageRow(int holeCol, CellType type = CellType::Solid, Color color = DARKGRAY) = 0;
+    virtual void VaporizeTopRows(int count) = 0;
+    virtual void VaporizeBottomRow() = 0;
+    virtual void CollapseFloatingCells() = 0;
+
     [[nodiscard]] virtual std::vector<std::string> Serialize() const = 0;
     virtual void Deserialize(const std::vector<std::string>& data) = 0;
 };
