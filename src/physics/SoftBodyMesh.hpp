@@ -4,6 +4,8 @@
 #include <vector>
 #include <raylib.h>
 
+#include "grid/GeometryTypes.hpp"
+
 namespace TetroShift {
 
 class SoftBodyMesh {
@@ -23,7 +25,7 @@ public:
     void SetElasticity(float elasticity) noexcept { m_elasticityMultiplier = elasticity; }
     [[nodiscard]] float GetElasticity() const noexcept { return m_elasticityMultiplier; }
 
-    void Render(const std::vector<Vector2>& minoPositions, Color color, float cellSize, bool debugWireframe = false) const;
+    void Render(const std::vector<Vector2>& minoPositions, Color color, float cellSize, GridGeometry geometry = GridGeometry::Orthogonal, bool debugWireframe = false) const;
 
 private:
     std::vector<VerletNode> m_nodes;

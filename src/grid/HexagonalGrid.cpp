@@ -259,27 +259,29 @@ LineClearResult HexagonalGrid::CheckAndClearLines() {
     return result;
 }
 
-Vector2 HexagonalGrid::CoordToWorld(const GridCoord& coord, Vector2 gridOrigin, float cellSize) const noexcept {
-    const float spacingX = cellSize * 0.94f;
-    const float spacingY = cellSize * 0.82f;
+Vector2 HexagonalGrid::CoordToWorld(const GridCoord& coord, Vector2 gridOrigin, float /*cellSize*/) const noexcept {
+    const float spacingX = 35.0f;
+    const float spacingY = 32.0f;
+    const float startX = gridOrigin.x - 20.0f;
     const float rowOffset = ((coord.y & 1) != 0) ? (spacingX * 0.5f) : 0.0f;
 
     return {
-        gridOrigin.x + static_cast<float>(coord.x) * spacingX + rowOffset,
+        startX + static_cast<float>(coord.x) * spacingX + rowOffset,
         gridOrigin.y + static_cast<float>(coord.y) * spacingY
     };
 }
 
 void HexagonalGrid::Render(Vector2 gridOrigin, float cellSize, bool showDebugHitbox) const {
-    const float radius = cellSize * 0.52f;
-    const float spacingX = cellSize * 0.94f;
-    const float spacingY = cellSize * 0.82f;
+    const float radius = 19.5f;
+    const float spacingX = 35.0f;
+    const float spacingY = 32.0f;
+    const float startX = gridOrigin.x - 20.0f;
     const float totalWidth = static_cast<float>(m_width) * spacingX + spacingX * 0.5f;
-    const float totalHeight = static_cast<float>(m_height) * spacingY + spacingY * 0.25f;
+    const float totalHeight = static_cast<float>(m_height) * spacingY;
 
     // Draw Honeycomb Playfield Background Container
-    DrawRectangleRounded({ gridOrigin.x - 4.0f, gridOrigin.y - 4.0f, totalWidth + 8.0f, totalHeight + 8.0f }, 0.04f, 6, Colors::GridBg);
-    DrawRectangleLinesEx({ gridOrigin.x - 4.0f, gridOrigin.y - 4.0f, totalWidth + 8.0f, totalHeight + 8.0f }, 1.5f, Colors::BgPanelBorder);
+    DrawRectangleRounded({ startX - 4.0f, gridOrigin.y - 4.0f, totalWidth + 8.0f, totalHeight + 8.0f }, 0.04f, 6, Colors::GridBg);
+    DrawRectangleLinesEx({ startX - 4.0f, gridOrigin.y - 4.0f, totalWidth + 8.0f, totalHeight + 8.0f }, 1.5f, Colors::BgPanelBorder);
 
     // Draw Sub-grid Honeycomb Cells (faint neon wires)
     for (int y = 0; y < m_height; ++y) {

@@ -120,21 +120,30 @@ Vector2 SoftBodyMesh::GetMinoRenderPos(size_t minoIndex) const noexcept {
     return { 0.0f, 0.0f };
 }
 
-void SoftBodyMesh::Render(const std::vector<Vector2>& minoPositions, Color color, float cellSize, bool debugWireframe) const {
+void SoftBodyMesh::Render(const std::vector<Vector2>& minoPositions, Color color, float cellSize, GridGeometry geometry, bool debugWireframe) const {
     const size_t count = minoPositions.size();
 
     // Render deformed soft-body blocks
     for (size_t i = 0; i < count; ++i) {
         Vector2 renderPos = (i < m_nodes.size()) ? m_nodes[i].position : minoPositions[i];
-        const Rectangle rect = { renderPos.x + 1.0f, renderPos.y + 1.0f, cellSize - 2.0f, cellSize - 2.0f };
 
-        // Rounded body
-        DrawRectangleRounded(rect, 0.22f, 4, color);
-
-        // Highlight sheen
-        DrawRectangleRec({ rect.x + 2.0f, rect.y + 2.0f, rect.width - 4.0f, 3.0f }, Fade(WHITE, 0.45f));
-        // Shadow base
-        DrawRectangleRec({ rect.x + 2.0f, rect.y + rect.height - 4.0f, rect.width - 4.0f, 2.0f }, Fade(BLACK, 0.35f));
+        if (geometry == GridGeometry::Hexagonal) {
+            float radius = cellSize * 0.52f;
+            Vector2 center = { renderPos.x + cellSize * 0.5f, renderPos.y + cellSize * 0.5f };
+            DrawPoly(center, 6, radius - 1.5f, 30.0f, color);
+            DrawPolyLinesEx(center, 6, radius - 1.5f, 30.0f, 1.5f, ColorAlphaBlend(color, WHITE, Fade(WHITE, 0.4f)));
+            DrawPolyLinesEx(center, 6, radius * 0.65f, 30.0f, 1.0f, Fade(BLACK, 0.35f));
+        } else if (geometry == GridGeometry::Radial) {
+            float pillRadius = 10.0f;
+            DrawCircleV(renderPos, pillRadius, color);
+            DrawCircleLines(static_cast<int>(renderPos.x), static_cast<int>(renderPos.y), pillRadius, ColorAlphaBlend(color, WHITE, Fade(WHITE, 0.4f)));
+            DrawCircle(static_cast<int>(renderPos.x), static_cast<int>(renderPos.y), pillRadius * 0.4f, Fade(BLACK, 0.35f));
+        } else {
+            const Rectangle rect = { renderPos.x + 1.0f, renderPos.y + 1.0f, cellSize - 2.0f, cellSize - 2.0f };
+            DrawRectangleRounded(rect, 0.22f, 4, color);
+            DrawRectangleRec({ rect.x + 2.0f, rect.y + 2.0f, rect.width - 4.0f, 3.0f }, Fade(WHITE, 0.45f));
+            DrawRectangleRec({ rect.x + 2.0f, rect.y + rect.height - 4.0f, rect.width - 4.0f, 2.0f }, Fade(BLACK, 0.35f));
+        }
     }
 
     // Render spring constraints in debug mode

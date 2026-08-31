@@ -48,8 +48,8 @@ private:
     int m_numSectors = 16;
     int m_numRings = 12;
     int m_bufferRings = 3;
-    float m_innerRadius = 48.0f;
-    float m_outerRadius = 240.0f;
+    float m_innerRadius = 55.0f;
+    float m_outerRadius = 310.0f;
     float m_pulseTimer = 0.0f;
 
     std::vector<Cell> m_cells;

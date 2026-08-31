@@ -495,9 +495,15 @@ void Renderer::RenderGameHUD(
 
     // Deflector shield energy aura around matrix
     if (runManager.GetInventory().GetShieldCount() > 0 && gameMode != GameMode::Marathon) {
-        float gridW = static_cast<float>(grid.GetWidth()) * CELL_SIZE;
-        float gridH = static_cast<float>(grid.GetHeight()) * CELL_SIZE;
-        DrawRectangleLinesEx({ gridOrigin.x - 4.0f, gridOrigin.y - 4.0f, gridW + 8.0f, gridH + 8.0f }, 2.0f, Fade(Colors::PieceI, 0.7f));
+        if (grid.GetGeometryType() == GridGeometry::Radial) {
+            DrawCircleLines(static_cast<int>(gridOrigin.x + 160.0f), static_cast<int>(gridOrigin.y + 320.0f), 316.0f, Fade(Colors::PieceI, 0.7f));
+        } else if (grid.GetGeometryType() == GridGeometry::Hexagonal) {
+            DrawRectangleLinesEx({ gridOrigin.x - 24.0f, gridOrigin.y - 4.0f, 376.0f, 648.0f }, 2.0f, Fade(Colors::PieceI, 0.7f));
+        } else {
+            float gridW = static_cast<float>(grid.GetWidth()) * CELL_SIZE;
+            float gridH = static_cast<float>(grid.GetHeight()) * CELL_SIZE;
+            DrawRectangleLinesEx({ gridOrigin.x - 4.0f, gridOrigin.y - 4.0f, gridW + 8.0f, gridH + 8.0f }, 2.0f, Fade(Colors::PieceI, 0.7f));
+        }
     }
 
     piece.Render(grid, gridOrigin, CELL_SIZE, true, showDebugPhysics);
@@ -505,8 +511,8 @@ void Renderer::RenderGameHUD(
     // 4. Particles & Floating Combat Text
     particles.Render();
 
-    // 5. Right Column Panels
-    const float rightX = PLAYFIELD_X + (static_cast<float>(grid.GetWidth()) * CELL_SIZE) + 36.0f;
+    // 5. Right Column Panels (Fixed symmetrical anchor on widescreen)
+    const float rightX = static_cast<float>(WINDOW_WIDTH) - 220.0f - 32.0f;
     DrawNextQueuePanel(spawner, { rightX, 56.0f, 220.0f, 290.0f });
     DrawStatsPanel(runManager, { rightX, 360.0f, 220.0f, 372.0f }, gameMode, marathonLevel);
 

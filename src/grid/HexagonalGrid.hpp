@@ -6,7 +6,7 @@ namespace TetroShift {
 
 class HexagonalGrid : public IGrid {
 public:
-    HexagonalGrid(int width = 10, int height = 18, int bufferHeight = 4);
+    HexagonalGrid(int width = 10, int height = 20, int bufferHeight = 4);
     ~HexagonalGrid() override = default;
 
     void Initialize(int width, int height, int bufferHeight = 4) override;

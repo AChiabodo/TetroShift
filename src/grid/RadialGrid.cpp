@@ -188,7 +188,7 @@ LineClearResult RadialGrid::CheckAndClearLines() {
 }
 
 Vector2 RadialGrid::CoordToWorld(const GridCoord& coord, Vector2 gridOrigin, float /*cellSize*/) const noexcept {
-    const Vector2 center = { gridOrigin.x + 190.0f, gridOrigin.y + 240.0f };
+    const Vector2 center = { gridOrigin.x + 160.0f, gridOrigin.y + 320.0f };
     const float normSec = static_cast<float>(NormalizeSector(coord.x));
     const float angle = (normSec + 0.5f) * (2.0f * std::numbers::pi_v<float> / static_cast<float>(m_numSectors)) - (std::numbers::pi_v<float> * 0.5f);
 
@@ -202,7 +202,7 @@ Vector2 RadialGrid::CoordToWorld(const GridCoord& coord, Vector2 gridOrigin, flo
 }
 
 void RadialGrid::Render(Vector2 gridOrigin, float cellSize, bool showDebugHitbox) const {
-    const Vector2 center = { gridOrigin.x + 190.0f, gridOrigin.y + 240.0f };
+    const Vector2 center = { gridOrigin.x + 160.0f, gridOrigin.y + 320.0f };
 
     // 1. Draw Central Singularity Core
     float pulse = (std::sin(m_pulseTimer * 3.5f) + 1.0f) * 0.5f;
