@@ -17,6 +17,8 @@ void ActivePiece::Spawn(TetrominoType type, GridCoord startPos, CellType minoTyp
     m_isGrounded = false;
     m_isLocked = false;
     m_ghostPhaseTimer = 0.0f;
+    m_lastActionWasRotate = false;
+    m_lastKickIndex = 0;
 
     m_softBody.SetElasticity(elasticity);
 
@@ -62,6 +64,7 @@ bool ActivePiece::TryMove(GridCoord delta, const IGrid& grid, EventBus* eventBus
     GridCoord newPos = m_position + delta;
     if (!CheckCollision(newPos, m_rotation, grid)) {
         m_position = newPos;
+        m_lastActionWasRotate = false;
 
         // Apply physical wobble impulse
         const float impulseMag = (delta.x != 0) ? WOBBLE_IMPULSE_MOVE : 4.0f;
@@ -91,6 +94,7 @@ bool ActivePiece::TryRotate(int direction, const IGrid& grid, EventBus* eventBus
     // O piece does not rotate
     if (m_type == TetrominoType::O) {
         m_softBody.ApplyRotationTorque(static_cast<float>(direction) * 20.0f);
+        m_lastActionWasRotate = false;
         return true;
     }
 
@@ -102,6 +106,8 @@ bool ActivePiece::TryRotate(int direction, const IGrid& grid, EventBus* eventBus
         if (!CheckCollision(testPos, targetRot, grid)) {
             m_position = testPos;
             m_rotation = targetRot;
+            m_lastActionWasRotate = true;
+            m_lastKickIndex = i;
 
             // Apply rotational spring torque
             m_softBody.ApplyRotationTorque(static_cast<float>(direction) * WOBBLE_IMPULSE_ROTATE);
@@ -121,6 +127,63 @@ bool ActivePiece::TryRotate(int direction, const IGrid& grid, EventBus* eventBus
     return false;
 }
 
+TSpinType ActivePiece::CheckTSpin(const IGrid& grid) const noexcept {
+    if (m_type != TetrominoType::T || !m_lastActionWasRotate) {
+        return TSpinType::None;
+    }
+
+    // In 3x3 T-piece grid, center is (x+1, y+1)
+    GridCoord center = m_position + GridCoord{ 1, 1 };
+
+    GridCoord nw = center + GridCoord{ -1, -1 };
+    GridCoord ne = center + GridCoord{ +1, -1 };
+    GridCoord se = center + GridCoord{ +1, +1 };
+    GridCoord sw = center + GridCoord{ -1, +1 };
+
+    auto isOccupied = [&grid](const GridCoord& c) -> bool {
+        if (c.x < 0 || c.x >= grid.GetWidth() || c.y >= grid.GetHeight()) {
+            return true; // Walls and floor count as occupied
+        }
+        return (c.y >= 0) ? grid.IsCellOccupied(c) : false;
+    };
+
+    bool nwOcc = isOccupied(nw);
+    bool neOcc = isOccupied(ne);
+    bool seOcc = isOccupied(se);
+    bool swOcc = isOccupied(sw);
+
+    int totalOccupied = (nwOcc ? 1 : 0) + (neOcc ? 1 : 0) + (seOcc ? 1 : 0) + (swOcc ? 1 : 0);
+    if (totalOccupied < 3) {
+        return TSpinType::None;
+    }
+
+    // Identify front corners based on rotation
+    // rot 0 (North): front = NW, NE; back = SW, SE
+    // rot 1 (East):  front = NE, SE; back = NW, SW
+    // rot 2 (South): front = SW, SE; back = NW, NE
+    // rot 3 (West):  front = NW, SW; back = NE, SE
+    int frontOccupied = 0;
+    switch (m_rotation) {
+        case 0: frontOccupied = (nwOcc ? 1 : 0) + (neOcc ? 1 : 0); break;
+        case 1: frontOccupied = (neOcc ? 1 : 0) + (seOcc ? 1 : 0); break;
+        case 2: frontOccupied = (swOcc ? 1 : 0) + (seOcc ? 1 : 0); break;
+        case 3: frontOccupied = (nwOcc ? 1 : 0) + (swOcc ? 1 : 0); break;
+        default: frontOccupied = 0; break;
+    }
+
+    if (frontOccupied == 2) {
+        return TSpinType::Standard;
+    }
+
+    // Front occupied == 1, back occupied == 2
+    // If kick test 5 (index 4 in 0-based indexing) was used -> Standard (T-Spin Triple exception)
+    if (m_lastKickIndex == 4) {
+        return TSpinType::Standard;
+    }
+
+    return TSpinType::Mini;
+}
+
 GridCoord ActivePiece::GetGhostPosition(const IGrid& grid) const noexcept {
     GridCoord ghostPos = m_position;
     while (!CheckCollision(ghostPos + GridCoord{ 0, 1 }, m_rotation, grid)) {
@@ -136,6 +199,10 @@ int ActivePiece::HardDrop(const IGrid& grid, EventBus* eventBus) {
     while (!CheckCollision(m_position + GridCoord{ 0, 1 }, m_rotation, grid)) {
         m_position.y += 1;
         linesDropped++;
+    }
+
+    if (linesDropped > 0) {
+        m_lastActionWasRotate = false;
     }
 
     m_isGrounded = true;

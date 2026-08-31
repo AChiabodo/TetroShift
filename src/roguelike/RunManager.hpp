@@ -1,6 +1,7 @@
 #pragma once
 #include "Inventory.hpp"
 #include "Card.hpp"
+#include "piece/ActivePiece.hpp"
 #include <vector>
 #include <string>
 
@@ -13,7 +14,7 @@ public:
     void Reset();
 
     void AddScore(int basePoints, const std::string& reason = "");
-    void RegisterLineClear(int linesCount, bool isTetris, const CardContext& ctx);
+    void RegisterLineClear(int linesCount, bool isTetris, const CardContext& ctx, TSpinType tspin = TSpinType::None);
     void RegisterPieceSpawn(const CardContext& ctx);
     void RegisterPieceLock(const CardContext& ctx);
 
@@ -26,6 +27,9 @@ public:
     [[nodiscard]] int GetLinesThisFloor() const noexcept { return m_linesThisFloor; }
     [[nodiscard]] int GetFloorLineTarget() const noexcept { return m_floorLineTarget; }
     [[nodiscard]] int GetCombo() const noexcept { return m_combo; }
+    [[nodiscard]] int GetB2BStreak() const noexcept { return m_b2bStreak; }
+    [[nodiscard]] bool IsB2BActive() const noexcept { return m_b2bStreak > 1; }
+    void ResetB2B() noexcept { m_b2bStreak = 0; }
     [[nodiscard]] float GetScoreMultiplier() const noexcept { return m_scoreMultiplier; }
     [[nodiscard]] float GetFallInterval() const noexcept;
     [[nodiscard]] bool IsDraftPending() const noexcept { return m_draftPending; }
@@ -60,6 +64,7 @@ private:
     int m_linesThisFloor = 0;
     int m_floorLineTarget = 6;
     int m_combo = -1;
+    int m_b2bStreak = 0;
     float m_scoreMultiplier = 1.0f;
     float m_speedMultiplier = 1.0f;
     float m_globalElasticity = 1.0f;

@@ -13,6 +13,12 @@ namespace TetroShift {
 class IGrid;
 class EventBus;
 
+enum class TSpinType {
+    None = 0,
+    Mini,
+    Standard
+};
+
 class ActivePiece {
 public:
     ActivePiece() = default;
@@ -41,6 +47,9 @@ public:
     [[nodiscard]] int GetRotation() const noexcept { return m_rotation; }
     [[nodiscard]] SoftBodyMesh& GetSoftBody() noexcept { return m_softBody; }
 
+    [[nodiscard]] TSpinType CheckTSpin(const IGrid& grid) const noexcept;
+    [[nodiscard]] bool WasLastActionRotate() const noexcept { return m_lastActionWasRotate; }
+
     void SetGhostPhase(float durationSeconds) noexcept { m_ghostPhaseTimer = durationSeconds; }
     [[nodiscard]] bool IsGhostPhaseActive() const noexcept { return m_ghostPhaseTimer > 0.0f; }
 
@@ -62,6 +71,8 @@ private:
     bool m_isGrounded = false;
     bool m_isLocked = false;
     float m_ghostPhaseTimer = 0.0f;
+    bool m_lastActionWasRotate = false;
+    size_t m_lastKickIndex = 0;
 };
 
 } // namespace TetroShift
