@@ -6,7 +6,10 @@
 #include "core/SaveManager.hpp"
 #include "roguelike/CardDatabase.hpp"
 #include "roguelike/Inventory.hpp"
+#include "render/FontManager.hpp"
+#include "render/ScreenEffects.hpp"
 #include <memory>
+#include <raylib.h>
 
 namespace TetroShift {
 
@@ -27,6 +30,8 @@ public:
     [[nodiscard]] MusicManager& GetMusicManager() noexcept { return m_musicManager; }
     [[nodiscard]] SaveManager& GetSaveManager() noexcept { return m_saveManager; }
     [[nodiscard]] CardDatabase& GetCardDatabase() noexcept { return m_cardDatabase; }
+    [[nodiscard]] FontManager& GetFontManager() noexcept { return m_fontManager; }
+    [[nodiscard]] ScreenEffects& GetScreenEffects() noexcept { return m_screenEffects; }
 
     // Inter-state bridge helpers
     class PlayState* GetActivePlayState();
@@ -45,6 +50,9 @@ private:
     MusicManager m_musicManager;
     SaveManager m_saveManager;
     CardDatabase m_cardDatabase;
+    FontManager m_fontManager;
+    ScreenEffects m_screenEffects;
+    RenderTexture2D m_screenTexture{};
     bool m_isRunning = false;
 };
 
