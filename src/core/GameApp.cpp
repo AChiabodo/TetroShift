@@ -18,6 +18,7 @@ GameApp::GameApp() {
     InitAudioDevice();
     m_soundSynth.Initialize();
     m_musicManager.Initialize();
+    m_saveManager.Initialize();
 
     m_stateManager.SetState(*this, std::make_unique<TitleState>());
 }

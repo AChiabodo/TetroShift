@@ -3,6 +3,7 @@
 #include "states/GameStateManager.hpp"
 #include "audio/SoundSynth.hpp"
 #include "audio/MusicManager.hpp"
+#include "core/SaveManager.hpp"
 #include "roguelike/CardDatabase.hpp"
 #include "roguelike/Inventory.hpp"
 #include <memory>
@@ -24,6 +25,7 @@ public:
     [[nodiscard]] GameStateManager& GetStateManager() noexcept { return m_stateManager; }
     [[nodiscard]] SoundSynth& GetSoundSynth() noexcept { return m_soundSynth; }
     [[nodiscard]] MusicManager& GetMusicManager() noexcept { return m_musicManager; }
+    [[nodiscard]] SaveManager& GetSaveManager() noexcept { return m_saveManager; }
     [[nodiscard]] CardDatabase& GetCardDatabase() noexcept { return m_cardDatabase; }
 
     // Inter-state bridge helpers
@@ -39,6 +41,7 @@ private:
     GameStateManager m_stateManager;
     SoundSynth m_soundSynth;
     MusicManager m_musicManager;
+    SaveManager m_saveManager;
     CardDatabase m_cardDatabase;
     bool m_isRunning = false;
 };

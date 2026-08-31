@@ -68,6 +68,29 @@ struct SaveSlotData {
     Color accentColor = { 0, 240, 255, 255 };
 };
 
+// Complete serialized Roguelike run state for disk suspension and loading
+struct SavedRunState {
+    int slotId = 1;
+    SaveSlotState state = SaveSlotState::ActiveRun;
+    std::string runMode = "ROGUELIKE RUN";
+    std::string timestamp = "2026-08-31 11:00";
+    int floor = 1;
+    int score = 0;
+    int linesTotal = 0;
+    int linesThisFloor = 0;
+    int floorLineTarget = 6;
+    int coins = 20;
+    int rerollTokens = 1;
+    float scoreMultiplier = 1.0f;
+    float speedMultiplier = 1.0f;
+    float globalElasticity = 1.0f;
+    std::vector<std::string> cardIds;
+    std::vector<std::string> gridCells; // 20 strings of length 10 representing cells
+    TetrominoType holdPiece = TetrominoType::None;
+    bool canHold = true;
+    uint32_t rngState = 1337;
+};
+
 // High score record entry
 struct HighScoreEntry {
     int rank = 1;
