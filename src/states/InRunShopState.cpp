@@ -239,6 +239,7 @@ void InRunShopState::Render(GameApp& app) {
                 }
 
                 Renderer r;
+                r.SetFontManager(&app.GetFontManager());
                 r.DrawCardUI(m_marketCards[i], cRect, isSelected, isHovered);
 
                 // Buy button below card

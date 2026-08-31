@@ -14,6 +14,7 @@ void TitleState::OnEnter(GameApp& app) {
     m_activeTab = 0;
     m_selectedThemeIndex = 0;
 
+    m_menuRenderer.SetFontManager(&app.GetFontManager());
     InitializeRealData(app);
     app.GetSoundSynth().SetMasterVolume(m_settings.masterVolume);
     app.GetMusicManager().SetVolume(m_settings.musicVolume);

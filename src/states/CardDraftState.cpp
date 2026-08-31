@@ -128,6 +128,7 @@ void CardDraftState::Render(GameApp& app) {
     const float startY = (WINDOW_HEIGHT - cardHeight) * 0.5f + 20.0f;
 
     Renderer renderer;
+    renderer.SetFontManager(&app.GetFontManager());
     for (size_t i = 0; i < m_choices.size(); ++i) {
         float floatOffset = (static_cast<int>(i) == m_selectedIndex) ? std::sin(m_animTimer * 5.0f) * 4.0f - 8.0f : 0.0f;
         Rectangle cardRect = {

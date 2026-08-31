@@ -60,8 +60,11 @@ void PlayState::OnEnter(GameApp& app) {
                     ((m_customSeed != 0) ? m_customSeed : SaveManager::ComputeDailySeed()) : 1337;
     m_spawner.Reset(seed);
     m_runManager.Reset();
+    m_renderer.SetFontManager(&app.GetFontManager());
+    m_menuRenderer.SetFontManager(&app.GetFontManager());
     m_particles.Reset();
     m_screenEffects.Reset();
+    m_screenEffects.Initialize(WINDOW_WIDTH, WINDOW_HEIGHT);
 
     m_dasTimer = 0.0f;
     m_arrTimer = 0.0f;
@@ -275,11 +278,14 @@ void PlayState::HandlePieceLock(GameApp& app) {
             app.GetSoundSynth().PlayCombo(m_runManager.GetCombo());
         }
 
-        // Screen shake trauma
+        // Screen shake trauma & chromatic aberration
         float trauma = (clearResult.linesCount >= 4 || tspin != TSpinType::None) ? 0.60f : (0.15f * static_cast<float>(clearResult.linesCount));
         m_screenEffects.AddTrauma(trauma);
+        app.GetScreenEffects().AddTrauma(trauma);
         if (clearResult.linesCount >= 4 || tspin != TSpinType::None) {
-            m_screenEffects.TriggerFlash((tspin != TSpinType::None) ? Colors::PieceT : Colors::TextAccent, 0.45f);
+            Color fCol = (tspin != TSpinType::None) ? Colors::PieceT : Colors::TextAccent;
+            m_screenEffects.TriggerFlash(fCol, 0.45f);
+            app.GetScreenEffects().TriggerFlash(fCol, 0.45f);
         }
 
         // Emit particles along cleared rows
@@ -297,6 +303,7 @@ void PlayState::HandlePieceLock(GameApp& app) {
             bWorld.y += CELL_SIZE * 0.5f;
             m_particles.EmitBombBlast(bWorld, RED, 50);
             m_screenEffects.AddTrauma(0.35f);
+            app.GetScreenEffects().AddTrauma(0.35f);
         }
 
         // Floating score popup
@@ -436,6 +443,7 @@ void PlayState::HandleMovementInput(GameApp& app, float dt) {
         if (droppedCells > 0) {
             app.GetSoundSynth().PlayDrop();
             m_screenEffects.AddTrauma(0.12f);
+            app.GetScreenEffects().AddTrauma(0.12f);
             m_runManager.AddScore(droppedCells * 2, "HARD DROP");
 
             // Particle dust effect at landing site
@@ -555,6 +563,18 @@ void PlayState::HandleInput(GameApp& app) {
 
     if (IsKeyPressed(KEY_F1)) {
         m_showDebugPhysics = !m_showDebugPhysics;
+    }
+
+    if (IsKeyPressed(KEY_F4)) {
+        app.GetScreenEffects().ToggleScanlines();
+        app.GetScreenEffects().ToggleCrtCurvature();
+        app.GetSoundSynth().PlayMenuToggle();
+        m_particles.AddPopup(
+            app.GetScreenEffects().IsScanlinesEnabled() ? "CRT SHADER: ON" : "CRT SHADER: OFF",
+            { PLAYFIELD_X + 160.0f, PLAYFIELD_Y + 140.0f },
+            Colors::TextAccent,
+            1.2f
+        );
     }
 
     if (m_isPaused) {
