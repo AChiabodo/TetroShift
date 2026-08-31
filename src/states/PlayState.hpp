@@ -8,6 +8,7 @@
 #include "render/ScreenEffects.hpp"
 #include "render/Renderer.hpp"
 #include "render/MenuRenderer.hpp"
+#include "roguelike/HazardManager.hpp"
 #include "states/MenuTypes.hpp"
 #include <memory>
 #include <optional>
@@ -32,6 +33,7 @@ public:
     [[nodiscard]] ActivePiece& GetActivePiece() noexcept { return m_activePiece; }
     [[nodiscard]] PieceSpawner& GetSpawner() noexcept { return m_spawner; }
     [[nodiscard]] RunManager& GetRunManager() noexcept { return m_runManager; }
+    [[nodiscard]] HazardManager& GetHazardManager() noexcept { return m_hazardManager; }
     [[nodiscard]] ParticleSystem& GetParticles() noexcept { return m_particles; }
     [[nodiscard]] ScreenEffects& GetScreenEffects() noexcept { return m_screenEffects; }
     [[nodiscard]] int GetActiveSlot() const noexcept { return m_activeSlot; }
@@ -50,6 +52,7 @@ private:
     ActivePiece m_activePiece;
     PieceSpawner m_spawner;
     RunManager m_runManager;
+    HazardManager m_hazardManager;
     ParticleSystem m_particles;
     ScreenEffects m_screenEffects;
     Renderer m_renderer;

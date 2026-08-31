@@ -87,6 +87,7 @@ void PlayState::OnEnter(GameApp& app) {
             CardContext ctx{ &m_runManager, &m_activePiece, m_grid.get(), &m_spawner, &app.GetEventBus() };
             m_runManager.GetInventory().AddCard(*card, ctx);
             m_runManager.AdvanceFloor();
+            m_hazardManager.SetFloor(m_runManager.GetFloor());
 
             // Check if track changes on floor transition (only if dynamic mode)
             if (app.GetMusicManager().GetFixedTrackIndex() == 0) {
@@ -123,6 +124,7 @@ void PlayState::OnEnter(GameApp& app) {
         app.GetMusicManager().PlayTrack(initialTheme, true);
     }
 
+    m_hazardManager.SetFloor(m_runManager.GetFloor());
     SpawnNextPiece(app);
 }
 
@@ -148,6 +150,17 @@ void PlayState::SpawnNextPiece(GameApp& app) {
     const auto coords = m_activePiece.GetMinoGridCoords();
     for (const auto& c : coords) {
         if (m_grid->IsCellOccupied(c)) {
+            // Check if Deflector Shield saves the player!
+            if (m_runManager.GetInventory().ConsumeShield()) {
+                app.GetSoundSynth().PlayLevelUp();
+                app.GetSoundSynth().PlayLineClear(4);
+                m_screenEffects.TriggerFlash(GOLD, 0.6f);
+                m_screenEffects.AddTrauma(0.5f);
+                m_grid->VaporizeTopRows(6);
+                m_particles.AddPopup("🛡 DEFLECTOR SHIELD SAVED YOU!", { PLAYFIELD_X + 160.0f, PLAYFIELD_Y + 120.0f }, GOLD, 1.8f);
+                return;
+            }
+
             // Game Over!
             app.GetSoundSynth().PlayGameOver();
             m_screenEffects.TriggerFlash(RED, 0.6f);
@@ -265,6 +278,11 @@ void PlayState::HandleMovementInput(GameApp& app, float dt) {
     int currentDir = 0;
     if (IsKeyDown(KEY_LEFT) || IsKeyDown(KEY_A)) currentDir = -1;
     if (IsKeyDown(KEY_RIGHT) || IsKeyDown(KEY_D)) currentDir = +1;
+
+    // Apply Glitch Matrix hazard command inversion
+    if (m_hazardManager.AreControlsInverted()) {
+        currentDir = -currentDir;
+    }
 
     if (currentDir != 0) {
         if (m_heldDirection != currentDir) {
@@ -451,14 +469,18 @@ void PlayState::HandleInput(GameApp& app) {
 }
 
 void PlayState::Update(GameApp& app, float dt) {
-    if (m_isPaused) return;
+    if (m_isPaused || app.GetStateManager().HasOverlay()) return;
+
+    m_hazardManager.Update(dt, *m_grid, m_activePiece, m_screenEffects, m_particles, app.GetSoundSynth());
 
     m_grid->Update(dt);
     m_particles.Update(dt);
     m_screenEffects.Update(dt);
 
-    // Calculate effective fall interval (accelerated on Soft Drop)
-    float fallInterval = m_runManager.GetFallInterval();
+    // Calculate effective fall interval (accelerated on Soft Drop and Hazard Gravity)
+    float speedMult = m_runManager.GetSpeedMultiplier() * m_hazardManager.GetGravitySpeedMultiplier();
+    if (m_runManager.GetInventory().HasCryoBuff()) speedMult *= 0.8f;
+    float fallInterval = m_runManager.GetFallInterval() / std::max(0.1f, speedMult);
     if (IsKeyDown(KEY_DOWN) || IsKeyDown(KEY_S)) {
         fallInterval /= SOFT_DROP_FACTOR;
     }
@@ -597,7 +619,8 @@ void PlayState::Render(GameApp& app) {
         m_runManager,
         m_particles,
         m_screenEffects,
-        m_showDebugPhysics
+        m_showDebugPhysics,
+        &m_hazardManager
     );
 
     // HUD Now Playing Banner

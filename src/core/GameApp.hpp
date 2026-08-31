@@ -29,7 +29,9 @@ public:
     [[nodiscard]] CardDatabase& GetCardDatabase() noexcept { return m_cardDatabase; }
 
     // Inter-state bridge helpers
+    class PlayState* GetActivePlayState();
     [[nodiscard]] const Inventory& GetPlayStateInventory() const;
+    Inventory* GetPlayStateInventoryMut();
     void ApplyDraftCard(const struct Card& card);
     bool UseRerollToken();
     [[nodiscard]] int GetRemainingRerolls() const;

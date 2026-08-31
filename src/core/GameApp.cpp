@@ -53,23 +53,54 @@ void GameApp::Run() {
     }
 }
 
+#include "states/PlayState.hpp"
+
+PlayState* GameApp::GetActivePlayState() {
+    return dynamic_cast<PlayState*>(m_stateManager.GetCurrentState());
+}
+
 const Inventory& GameApp::GetPlayStateInventory() const {
     static Inventory fallback;
+    auto* current = const_cast<GameStateManager&>(m_stateManager).GetCurrentState();
+    auto* play = dynamic_cast<PlayState*>(current);
+    if (play) {
+        return play->GetRunManager().GetInventory();
+    }
     return fallback;
 }
 
+Inventory* GameApp::GetPlayStateInventoryMut() {
+    auto* play = GetActivePlayState();
+    if (play) {
+        return &play->GetRunManager().GetInventory();
+    }
+    return nullptr;
+}
+
 void GameApp::ApplyDraftCard(const Card& card) {
-    // In our state hierarchy, PlayState is the base state under the Draft overlay
-    // We will publish the event and advance
+    auto* play = GetActivePlayState();
+    if (play) {
+        CardContext ctx{ &play->GetRunManager(), &play->GetActivePiece(), &play->GetGrid(), &play->GetSpawner(), &m_eventBus };
+        play->GetRunManager().GetInventory().AddCard(card, ctx);
+    }
     m_eventBus.Publish(EventCardAcquired{ card.id });
 }
 
 bool GameApp::UseRerollToken() {
-    return true;
+    auto* play = GetActivePlayState();
+    if (play) {
+        return play->GetRunManager().GetInventory().UseReroll();
+    }
+    return false;
 }
 
 int GameApp::GetRemainingRerolls() const {
-    return 1;
+    auto* current = const_cast<GameStateManager&>(m_stateManager).GetCurrentState();
+    auto* play = dynamic_cast<PlayState*>(current);
+    if (play) {
+        return play->GetRunManager().GetInventory().GetRerolls();
+    }
+    return 0;
 }
 
 } // namespace TetroShift

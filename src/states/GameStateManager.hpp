@@ -19,6 +19,7 @@ public:
     void HandleInput(GameApp& app);
 
     [[nodiscard]] bool HasOverlay() const noexcept { return !m_overlayStack.empty(); }
+    [[nodiscard]] IGameState* GetCurrentState() noexcept { return m_currentState.get(); }
 
 private:
     std::unique_ptr<IGameState> m_currentState;

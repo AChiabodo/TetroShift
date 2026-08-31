@@ -1,6 +1,7 @@
 #include "Renderer.hpp"
 #include "core/Constants.hpp"
 #include "roguelike/Card.hpp"
+#include "roguelike/HazardManager.hpp"
 #include <string>
 #include <cmath>
 
@@ -136,28 +137,55 @@ void Renderer::DrawRelicsPanel(const RunManager& runManager, Rectangle bounds) c
 
     const auto& actives = runManager.GetInventory().GetActives();
     const auto& passives = runManager.GetInventory().GetPassives();
+    int shields = runManager.GetInventory().GetShieldCount();
 
     float currY = bounds.y + 20.0f;
+
+    // Deflector Shield status badge
+    if (shields > 0) {
+        Rectangle shieldBadge = { bounds.x + 10.0f, currY, bounds.width - 20.0f, 24.0f };
+        DrawRectangleRounded(shieldBadge, 0.25f, 4, Fade(Colors::PieceI, 0.25f));
+        DrawRectangleLinesEx(shieldBadge, 1.2f, Colors::PieceI);
+        std::string sText = "🛡 DEFLECTOR SHIELD (" + std::to_string(shields) + "x)";
+        DrawText(sText.c_str(), static_cast<int>(shieldBadge.x + 10.0f), static_cast<int>(shieldBadge.y + 5.0f), 11, Colors::PieceI);
+        currY += 30.0f;
+    }
 
     // Active Abilities section
     if (!actives.empty()) {
         DrawText("ACTIVE ABILITIES [KEY 1 / 2]:", static_cast<int>(bounds.x + 12.0f), static_cast<int>(currY), 11, Colors::TextDim);
         currY += 16.0f;
 
-        for (size_t i = 0; i < actives.size(); ++i) {
+        for (size_t i = 0; i < actives.size() && i < 2; ++i) {
             const auto& act = actives[i];
-            std::string keyLabel = "[" + std::to_string(i + 1) + "] " + act.title;
-            DrawText(keyLabel.c_str(), static_cast<int>(bounds.x + 12.0f), static_cast<int>(currY), 12, Colors::TextAccent);
+            Rectangle actRect = { bounds.x + 8.0f, currY, bounds.width - 16.0f, 42.0f };
 
-            if (act.currentCooldown > 0) {
-                std::string cdText = "(CD: " + std::to_string(act.currentCooldown) + " lines)";
-                DrawText(cdText.c_str(), static_cast<int>(bounds.x + 160.0f), static_cast<int>(currY), 11, Colors::TextDanger);
+            bool isReady = (act.currentCooldown == 0);
+            Color borderCol = isReady ? Colors::PieceI : Colors::BgPanelBorder;
+            Color bgCol = isReady ? Fade(Colors::PieceI, 0.20f) : Colors::BgDark;
+
+            DrawRectangleRounded(actRect, 0.15f, 4, bgCol);
+            DrawRectangleLinesEx(actRect, isReady ? 1.8f : 1.0f, isReady ? (GetTime() * 4.0f - std::floor(GetTime() * 4.0f) > 0.5f ? WHITE : Colors::PieceI) : borderCol);
+
+            std::string slotKey = "[" + std::to_string(i + 1) + "] " + act.title;
+            DrawText(slotKey.c_str(), static_cast<int>(actRect.x + 8.0f), static_cast<int>(actRect.y + 6.0f), 12, isReady ? Colors::TextWhite : Colors::TextDim);
+
+            if (isReady) {
+                std::string readyTxt = "READY! [PREMI " + std::to_string(i + 1) + "]";
+                DrawText(readyTxt.c_str(), static_cast<int>(actRect.x + 8.0f), static_cast<int>(actRect.y + 24.0f), 11, Colors::TextGreen);
             } else {
-                DrawText("READY!", static_cast<int>(bounds.x + 160.0f), static_cast<int>(currY), 11, Colors::TextGreen);
+                float cdProgress = 1.0f - (static_cast<float>(act.currentCooldown) / static_cast<float>(std::max(1, act.maxCooldown)));
+                Rectangle cdBarBg = { actRect.x + 8.0f, actRect.y + 24.0f, actRect.width - 80.0f, 8.0f };
+                DrawRectangleRounded(cdBarBg, 0.4f, 4, Colors::GridBg);
+                Rectangle cdBarFill = { cdBarBg.x, cdBarBg.y, cdBarBg.width * cdProgress, cdBarBg.height };
+                DrawRectangleRounded(cdBarFill, 0.4f, 4, Colors::PieceBomb);
+
+                std::string cdText = std::to_string(act.currentCooldown) + "L";
+                DrawText(cdText.c_str(), static_cast<int>(actRect.x + actRect.width - 65.0f), static_cast<int>(actRect.y + 22.0f), 11, Colors::TextDanger);
             }
-            currY += 18.0f;
+            currY += 48.0f;
         }
-        currY += 8.0f;
+        currY += 4.0f;
     }
 
     // Passive Relics section
@@ -248,7 +276,8 @@ void Renderer::RenderGameHUD(
     const RunManager& runManager,
     const ParticleSystem& particles,
     const ScreenEffects& effects,
-    bool showDebugPhysics
+    bool showDebugPhysics,
+    const class HazardManager* hazardManager
 ) const {
     // 1. Draw Title Header
     DrawText("TETROSHIFT // MORPHOTETRIS", 32, 16, 22, Colors::TextAccent);
@@ -264,7 +293,28 @@ void Renderer::RenderGameHUD(
     Vector2 screenOffset = effects.GetScreenOffset();
     Vector2 gridOrigin = { PLAYFIELD_X + screenOffset.x, PLAYFIELD_Y + screenOffset.y };
 
+    // Hazard warning banner above matrix
+    if (hazardManager && hazardManager->HasActiveHazard()) {
+        std::string hText = hazardManager->GetActiveStatusText();
+        Color hCol = hazardManager->GetConfig().themeColor;
+        bool isPulsing = hazardManager->IsPulseActive();
+
+        Rectangle hBanner = { gridOrigin.x - 20.0f, gridOrigin.y - 34.0f, (static_cast<float>(grid.GetWidth()) * CELL_SIZE) + 40.0f, 26.0f };
+        DrawRectangleRounded(hBanner, 0.3f, 4, isPulsing ? Fade(hCol, 0.35f) : Colors::BgPanel);
+        DrawRectangleLinesEx(hBanner, isPulsing ? 2.0f : 1.0f, isPulsing ? WHITE : hCol);
+        int htw = MeasureText(hText.c_str(), 11);
+        DrawText(hText.c_str(), static_cast<int>(hBanner.x + (hBanner.width - htw) * 0.5f), static_cast<int>(hBanner.y + 7.0f), 11, isPulsing ? WHITE : hCol);
+    }
+
     grid.Render(gridOrigin, CELL_SIZE, showDebugPhysics);
+
+    // Deflector shield energy aura around matrix
+    if (runManager.GetInventory().GetShieldCount() > 0) {
+        float gridW = static_cast<float>(grid.GetWidth()) * CELL_SIZE;
+        float gridH = static_cast<float>(grid.GetHeight()) * CELL_SIZE;
+        DrawRectangleLinesEx({ gridOrigin.x - 4.0f, gridOrigin.y - 4.0f, gridW + 8.0f, gridH + 8.0f }, 2.0f, Fade(Colors::PieceI, 0.7f));
+    }
+
     piece.Render(grid, gridOrigin, CELL_SIZE, true, showDebugPhysics);
 
     // 4. Particles & Floating Combat Text

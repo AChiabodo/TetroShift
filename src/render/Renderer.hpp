@@ -20,7 +20,8 @@ public:
         const RunManager& runManager,
         const ParticleSystem& particles,
         const ScreenEffects& effects,
-        bool showDebugPhysics = false
+        bool showDebugPhysics = false,
+        const class HazardManager* hazardManager = nullptr
     ) const;
 
     void DrawCardUI(const struct Card& card, Rectangle bounds, bool isSelected = false, bool isHovered = false) const;
